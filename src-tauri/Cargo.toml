@@ -1,0 +1,18 @@
+[package]
+name = "sukijournal"
+version = "0.1.0"
+description = "Un bullet journal de escritorio, local y personal"
+edition = "2021"
+
+[lib]
+name = "sukijournal_lib"
+
+[features]
+# Activa el modo de producción de Tauri al compilar el ejecutable distribuible.
+custom-protocol = ["tauri/custom-protocol"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }

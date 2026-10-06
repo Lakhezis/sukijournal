@@ -1,0 +1,7 @@
+/src-tauri/target/
+/src-tauri/gen/
+/verification/
+
+# Los journals del usuario no forman parte del código fuente.
+*.sqlite
+*.sqlite-*

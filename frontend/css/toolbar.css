@@ -1,0 +1,144 @@
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 28px 18px 16px;
+  overflow-y: auto;
+  border-right: 1px solid var(--border);
+  background: var(--background);
+}
+
+.sidebar-heading {
+  margin: 0 10px 22px;
+}
+
+.sidebar-heading h2 {
+  margin-bottom: 6px;
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.sidebar-heading p {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.tool-group {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.tool-button {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 48px;
+  padding: 6px 10px;
+  border: 1px solid transparent;
+  border-radius: 14px;
+  color: var(--ink);
+  background: transparent;
+  text-align: left;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.tool-button:enabled:hover {
+  border-color: var(--border);
+  background: var(--paper);
+}
+
+.tool-button:enabled:active,
+.tool-button.is-active {
+  border-color: #edcaca;
+  background: #fbe4e0;
+}
+
+.tool-button:disabled {
+  color: #777972;
+}
+
+.tool-icon {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  border-radius: 10px;
+  color: #827c70;
+  background: #eeeae5;
+}
+
+.tool-icon-yellow {
+  background: #f9edc9;
+  color: #8a7852;
+}
+
+.tool-icon-pink {
+  background: #fae0dc;
+  color: #a27b76;
+}
+
+.tool-icon-lilac {
+  background: #f4e5f3;
+  color: #927b91;
+}
+
+.tool-icon-sage {
+  background: #e9ecdf;
+  color: #7f866b;
+}
+
+.future-tools {
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border);
+}
+
+.group-label {
+  margin: 0 10px 6px;
+  color: var(--olive);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.future-tools .tool-button {
+  min-height: 43px;
+  color: #85867d;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.future-tools .tool-icon {
+  width: 30px;
+  height: 30px;
+  color: #96968b;
+  background: #f0ede8;
+}
+
+.future-tools .icon {
+  width: 19px;
+  height: 19px;
+}
+
+.sidebar-decoration {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-top: auto;
+  padding-top: 24px;
+  color: var(--olive);
+  font-size: 12px;
+  font-style: italic;
+}
+
+.sidebar-decoration img {
+  display: block;
+  margin-bottom: -8px;
+  opacity: 0.85;
+}

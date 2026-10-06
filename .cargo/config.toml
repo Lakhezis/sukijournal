@@ -1,0 +1,3 @@
+[build]
+# Limita los procesos de compilación para equipos con poca memoria.
+jobs = 1

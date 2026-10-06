@@ -1,0 +1,73 @@
+.workspace {
+  min-width: 0;
+  min-height: 0;
+  padding: 0 38px 38px;
+  overflow: auto;
+  background: #f3eee8;
+  scrollbar-color: #cfc5bc #f3eee8;
+  scrollbar-width: thin;
+}
+
+.workspace:focus-visible {
+  outline-offset: -5px;
+}
+
+.workspace-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  min-height: 74px;
+  max-width: 860px;
+  margin: 0 auto;
+  color: var(--olive);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.workspace-heading p {
+  flex-shrink: 0;
+}
+
+.workspace-heading p > span:first-child {
+  margin: 0 10px;
+  color: #b6aea2;
+}
+
+.workspace-subtitle {
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.workspace-heading img {
+  display: block;
+  height: 68px;
+  object-fit: contain;
+  opacity: 0.65;
+  transform: rotate(68deg);
+}
+
+.paper-wrap {
+  width: 860px;
+  margin: 0 auto;
+  padding: 0 6px 7px 0;
+}
+
+.journal-page {
+  position: relative;
+  width: 854px;
+  height: 1080px;
+  border: 1px solid #e7ded3;
+  border-radius: 5px 12px 12px 5px;
+  background-color: var(--paper);
+  /* La trama pertenece a la hoja; no depende de una imagen ni de la ventana. */
+  background-image: radial-gradient(circle, #cfc5b8 0.8px, transparent 1px);
+  background-size: 24px 24px;
+  background-position: 12px 12px;
+  box-shadow:
+    3px 3px 0 -1px #fffaf2,
+    3px 3px 0 0 #e6dcd0,
+    6px 6px 0 -1px #faf5ed,
+    6px 6px 0 0 #e7ded3,
+    0 12px 30px #5c45350d;
+}
