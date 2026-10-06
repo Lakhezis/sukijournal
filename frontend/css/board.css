@@ -29,7 +29,7 @@
   flex-shrink: 0;
 }
 
-.workspace-heading p > span:first-child {
+.workspace-heading .page-divider {
   margin: 0 10px;
   color: #b6aea2;
 }

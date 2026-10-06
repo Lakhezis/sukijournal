@@ -3,5 +3,5 @@
   "identifier": "main",
   "description": "Permisos mínimos de la ventana principal; sin acceso a archivos desde el frontend.",
   "windows": ["main"],
-  "permissions": []
+  "permissions": ["core:event:allow-listen", "core:event:allow-unlisten", "core:window:allow-destroy"]
 }

@@ -3,20 +3,31 @@
 Bullet journal de escritorio para Debian 13, con interfaz HTML, CSS y JavaScript
 vanilla dentro de Tauri 2. El frontend utiliza ES Modules, sin npm ni bundler.
 
-## Etapa actual: 1 — Base Tauri
+## Etapa actual: 2 — Estado y persistencia SQLite
 
-Esta etapa incluye la ventana nativa, el diseño inicial, la hoja con puntos CSS,
-la barra superior, las herramientas y la navegación visual de una primera página.
-Todos los botones están deshabilitados: aún no existe edición, historial ni
-guardado. El indicador muestra «Vista inicial»; no afirma que haya datos guardados.
+La aplicación abre un journal local, crea una primera página cuando la base es
+nueva y permite agregar páginas con `+` y navegar entre ellas. Conserva el orden,
+los identificadores y la página activa al cerrar y volver a abrir.
 
-SQLite, el estado del journal y las herramientas funcionales se incorporarán en
-las etapas aprobadas posteriormente. No se crea todavía ningún `journal.sqlite`.
+Cada cambio se guarda automáticamente en SQLite. El indicador muestra «Cargando…»,
+«Guardando…», «Guardado» o «Sin guardar» según el resultado real. Si falla una
+escritura, mantiene los cambios en memoria, bloquea nuevas modificaciones y ofrece
+«Reintentar». El cierre normal espera el guardado; si falla, la ventana permanece
+abierta. «Recargar desde disco» permite descartar los cambios pendientes mediante
+una confirmación y recuperar la versión guardada, por ejemplo ante un conflicto
+entre ventanas. Terminar el proceso por la fuerza o apagar el equipo puede perder cambios
+que todavía no hayan recibido confirmación de guardado.
 
-Verificación completada el 6 de octubre de 2026: compilación release en modo de
-producción, apertura y reapertura del ejecutable, y frontend probado en WebKitGTK
-a 1280 × 900 y 900 × 640 sin errores de carga. Las capturas y los resultados locales
-están en `verification/`, una carpeta excluida de Git.
+Las ocho herramientas y deshacer/rehacer siguen en preparación. Esta etapa guarda
+el estado de las páginas; todavía no permite escribir o colocar objetos en la hoja.
+El modelo reserva `elements` por página y conserva su contenido al guardar.
+
+Las capturas y los resultados de las comprobaciones locales están en `verification/`,
+una carpeta excluida de Git. Los scripts y pruebas reproducibles están en `tests/`.
+Verificación completada el 6 de octubre de 2026: seis pruebas Rust y seis JavaScript
+aprobadas, interfaz comprobada en WebKitGTK a 1280 × 900 y 900 × 640 sin errores,
+y ejecutable release comprobado con creación, navegación, cierre normal y reapertura
+de un journal temporal.
 
 ## Dependencias de desarrollo
 
@@ -72,17 +83,51 @@ Esta etapa no genera todavía un instalador `.deb`.
 
 ## Comprobaciones manuales
 
-1. Abre la aplicación y comprueba que aparezcan «Mi Bullet Journal» y «Vista inicial».
-2. Comprueba que la hoja esté vacía y tenga una trama de puntos.
-3. Comprueba las ocho herramientas y el grupo «Próximamente».
-4. Los botones de herramientas, deshacer, rehacer y crear página deben estar deshabilitados.
-5. Desplázate por la hoja. La barra superior y el navegador inferior deben permanecer visibles.
-6. Redimensiona la ventana: la hoja conserva su tamaño y se puede recorrer con las barras de desplazamiento.
-7. Pulsa Tab: aparece «Ir a la hoja». Pulsa Enter para enfocar el área de trabajo; las flechas y Page Down permiten recorrerla.
-8. Cierra y vuelve a abrir la aplicación. Debe aparecer nuevamente la vista inicial vacía.
+1. Abre la aplicación y espera el indicador «Guardado».
+2. Comprueba que la hoja tenga puntos y las ocho herramientas sigan deshabilitadas.
+3. Pulsa `+` varias veces: cada página nueva aparece y pasa a ser la activa.
+4. Cambia a una página anterior y espera «Guardado».
+5. Cierra y vuelve a abrir: deben aparecer las mismas páginas y la última seleccionada.
+6. Crea muchas páginas: las pestañas se recorren horizontalmente sin ocultar `+` ni el contador.
+7. Desplázate por la hoja y redimensiona la ventana: las barras permanecen visibles.
+8. Pulsa Tab para llegar a «Ir a la hoja»; Enter enfoca el área de trabajo.
 
-En modo de desarrollo puedes abrir el inspector web con Ctrl+Shift+I. La consola
-debe mostrar «Suki Journal: interfaz inicial lista.» sin errores de carga.
+En modo de desarrollo puedes abrir el inspector web con Ctrl+Shift+I.
+Abrir `frontend/index.html` en un navegador común muestra un aviso: el guardado
+requiere ejecutar la aplicación Tauri.
+
+## Pruebas automatizadas
+
+Almacenamiento real: creación, reapertura, contenido de páginas, validación,
+rollback ante una escritura fallida, conflictos entre instancias y rechazo de bases
+incompatibles sin modificar su contenido:
+
+```sh
+~/.cargo/bin/cargo test --manifest-path src-tauri/Cargo.toml --release --features custom-protocol --locked
+```
+
+Estado del editor: cambios durante un guardado, confirmación de revisiones,
+reintentos y errores de carga. Node.js 20 se utiliza solo para ejecutar estas pruebas;
+no es una dependencia de la aplicación:
+
+```sh
+node --experimental-default-type=module tests/store.test.mjs
+```
+
+Interfaz en WebKitGTK con una persistencia simulada y la CSP de producción.
+Requiere una sesión gráfica, Python 3 y PyGObject con Gtk 3/WebKit2 4.1:
+
+```sh
+/usr/bin/python3 tests/webkit_check.py
+```
+
+Después de compilar el ejecutable release, la comprobación nativa crea un journal
+temporal, agrega páginas, navega, cierra normalmente y verifica la reapertura.
+Requiere X11, `xwininfo`, `xprop` y `libXtst`; no modifica el journal personal:
+
+```sh
+/usr/bin/python3 tests/native_check.py
+```
 
 ## Organización
 
@@ -91,10 +136,16 @@ debe mostrar «Suki Journal: interfaz inicial lista.» sin errores de carga.
 - `frontend/css/components.css`: botones, indicadores y foco accesible.
 - `frontend/css/toolbar.css`: barra lateral y herramientas.
 - `frontend/css/board.css`: superficie de trabajo y hoja punteada.
-- `frontend/js/app.js`: punto de entrada ES Module de la interfaz inicial.
+- `frontend/js/app.js`: renderizado, navegación y cierre con guardado pendiente.
+- `frontend/js/journal.js`: modelo y operaciones sobre las páginas.
+- `frontend/js/store.js`: estado del editor y cola de guardado con reintentos.
+- `frontend/js/storage.js`: adaptador de los comandos nativos.
 - `frontend/assets/brand/`: ilustraciones SVG originales.
 - `frontend/assets/fonts/`: Nunito empaquetada localmente y su licencia OFL.
-- `src-tauri/src/main.rs` y `lib.rs`: entrada nativa y arranque de Tauri.
+- `src-tauri/src/main.rs` y `lib.rs`: entrada nativa y sesión del journal abierto.
+- `src-tauri/src/journal.rs`: modelo serializable y validación del estado.
+- `src-tauri/src/storage.rs`: esquema SQLite, carga y guardado transaccional.
+- `src-tauri/src/commands.rs`: puente de carga/guardado con la sesión nativa.
 - `src-tauri/Cargo.toml` y `Cargo.lock`: dependencias Rust y versiones resueltas.
 - `src-tauri/build.rs`: integración de la compilación con Tauri.
 - `src-tauri/tauri.conf.json`: ventana, frontend local y política de recursos.
@@ -103,22 +154,31 @@ debe mostrar «Suki Journal: interfaz inicial lista.» sin errores de carga.
 - `.gitignore`: excluye resultados de compilación y archivos de journal.
 - `.cargo/config.toml`: limita los procesos simultáneos de compilación.
 
-## Decisiones de persistencia para la etapa 2
+## Persistencia
 
-SQLite mediante `rusqlite` será la única persistencia principal. Las herramientas
-modificarán el estado del editor y nunca ejecutarán SQL ni conocerán rutas del disco.
+SQLite mediante `rusqlite`, con SQLite incluida en el ejecutable, es la única
+persistencia principal. Las futuras herramientas modificarán el estado del editor
+sin ejecutar SQL ni conocer rutas del disco. No se usa `localStorage` para el journal.
 
-La ubicación automática será únicamente la elección inicial de la capa nativa.
-El módulo de almacenamiento recibirá la carpeta raíz del journal y resolverá
-`journal.sqlite` respecto de ella. Los comandos operarán sobre el journal abierto
-en la sesión; el frontend no contendrá una ruta fija.
+La capa nativa elige inicialmente `<directorio de datos de la aplicación>/journal/`.
+En Debian, normalmente es `~/.local/share/com.sukijournal.desktop/journal/`
+(respeta `XDG_DATA_HOME`). El almacenamiento recibe esa raíz y resuelve
+`journal.sqlite` respecto de ella. Los comandos operan sobre el journal abierto
+en la sesión; el frontend no contiene una ruta fija.
+
+La base usa `PRAGMA user_version = 1`, una tabla `journal` y una tabla `pages`.
+Las páginas almacenan identificador, posición, título y elementos JSON. Guardar
+actualiza el conjunto en una sola transacción, sin dejar páginas a medio escribir.
+Cada guardado incrementa una revisión: una ventana con estado anterior no puede
+sobrescribir cambios confirmados por otra. Las bases corruptas, desconocidas o de
+otra versión muestran un error y no se reemplazan por un journal vacío.
 
 La futura representación portable será una carpeta con `journal.sqlite` y
 `assets/`. Las referencias a assets serán relativas a esa carpeta. Esta separación
 permitirá posteriormente elegir otro journal, guardar una copia o respaldarlo sin
 cambiar el editor. No se implementan todavía esas funciones ni sus controles.
 
-El identificador `com.sukijournal.desktop` se mantendrá estable. El directorio de
+El identificador `com.sukijournal.desktop` se mantiene estable. El directorio de
 datos de la aplicación será la ubicación predeterminada, separada conceptualmente
 de la ubicación del journal abierto.
 
@@ -127,5 +187,7 @@ de la ubicación del journal abierto.
 - [Prerrequisitos de Tauri](https://v2.tauri.app/start/prerequisites/)
 - [Configuración del frontend](https://v2.tauri.app/reference/config/)
 - [API para JavaScript vanilla](https://v2.tauri.app/reference/javascript/api/)
+- [Comandos Rust desde el frontend](https://v2.tauri.app/develop/calling-rust/)
+- [Transacciones de rusqlite](https://docs.rs/rusqlite/latest/rusqlite/struct.Connection.html#method.transaction_with_behavior)
 - [CLI de Tauri](https://v2.tauri.app/reference/cli/)
 - Nunito: [Google Fonts](https://github.com/google/fonts/tree/main/ofl/nunito), licencia SIL Open Font License 1.1.

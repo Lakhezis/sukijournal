@@ -86,7 +86,7 @@
       <aside class="sidebar" aria-labelledby="tools-heading">
         <div class="sidebar-heading">
           <h2 id="tools-heading">Tu escritorio</h2>
-          <p>Pequeñas cosas, grandes ideas.</p>
+          <p>Herramientas para tus próximas creaciones</p>
         </div>
 
         <div class="tool-group" role="group" aria-label="Herramientas del journal">
@@ -130,30 +130,45 @@
 
         <div class="sidebar-decoration" aria-hidden="true">
           <img src="assets/brand/sprig.svg" alt="" width="144" height="130" />
-          <span>A tu ritmo.</span>
+          <span>Organizate, creá!</span>
         </div>
       </aside>
 
       <main class="workspace" id="workspace" tabindex="0" aria-label="Área de trabajo; hoja de Página 1">
+        <div class="storage-notice" id="storage-notice" role="alert" hidden>
+          <p id="storage-message"></p>
+          <button class="retry-button" id="retry-storage" type="button">Reintentar</button>
+          <button class="retry-button" id="reload-journal" type="button" hidden>Recargar desde disco</button>
+        </div>
         <div class="workspace-heading">
-          <p>Página 1 <span aria-hidden="true">/</span> <span class="workspace-subtitle">Un comienzo en blanco</span></p>
+          <p><span id="current-page-title">Cargando journal…</span> <span class="page-divider" aria-hidden="true">/</span> <span class="workspace-subtitle" id="page-subtitle"></span></p>
           <img src="assets/brand/sprig.svg" alt="" width="84" height="72" aria-hidden="true" />
         </div>
         <div class="paper-wrap">
-          <section class="journal-page" id="journal-page" aria-label="Página 1, hoja con trama de puntos"></section>
+          <section class="journal-page" id="journal-page" aria-label="Hoja con trama de puntos" hidden></section>
         </div>
       </main>
 
       <footer class="pagebar">
         <span class="pagebar-label" id="pages-heading">Tus páginas</span>
         <nav class="page-navigation" aria-labelledby="pages-heading">
-          <button class="page-tab is-active" type="button" aria-current="page" disabled title="Página 1 — navegación en preparación">Página 1</button>
-          <button class="icon-button add-page-button" type="button" disabled aria-label="Crear página" title="Crear página — en preparación">
+          <div class="page-tabs" id="page-tabs"></div>
+          <button class="icon-button add-page-button" id="add-page" type="button" disabled aria-label="Crear página" title="Crear página">
             <svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg>
           </button>
         </nav>
-        <span class="page-count">1 página</span>
+        <span class="page-count" id="page-count"></span>
       </footer>
     </div>
+    <dialog class="reload-dialog" id="reload-dialog" aria-labelledby="reload-heading">
+      <form method="dialog">
+        <h2 id="reload-heading">¿Descartar los cambios sin guardar?</h2>
+        <p>Se cargará la versión guardada del journal. Los cambios pendientes de esta ventana se perderán.</p>
+        <div class="dialog-actions">
+          <button class="retry-button" value="cancel" autofocus>Cancelar</button>
+          <button class="retry-button" value="reload">Descartar y recargar</button>
+        </div>
+      </form>
+    </dialog>
   </body>
 </html>

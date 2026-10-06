@@ -1,6 +1,7 @@
 /src-tauri/target/
 /src-tauri/gen/
 /verification/
+__pycache__/
 
 # Los journals del usuario no forman parte del código fuente.
 *.sqlite

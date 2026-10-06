@@ -69,6 +69,7 @@ button:disabled {
 }
 
 .page-tab {
+  cursor: pointer;
   padding: 10px 20px;
   border: 1px solid var(--border);
   border-radius: 12px;
@@ -99,4 +100,78 @@ button:disabled {
 
 .skip-link:focus {
   transform: translateY(0);
+}
+
+[hidden] {
+  display: none !important;
+}
+
+.save-status[data-state="saving"] .status-dot {
+  background: #b7923b;
+}
+
+.save-status[data-state="error"] {
+  color: #8e3434;
+  background: #fff0ec;
+  border-color: #edcaca;
+}
+
+.save-status[data-state="error"] .status-dot {
+  background: #8e3434;
+}
+
+.storage-notice {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 18px;
+  border: 1px solid #edcaca;
+  border-radius: 12px;
+  background: #fff0ec;
+  color: #8e3434;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.storage-notice p {
+  flex: 1 1 280px;
+}
+
+.reload-dialog {
+  max-width: 440px;
+  padding: 24px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  color: var(--ink);
+  background: var(--paper);
+}
+
+.reload-dialog::backdrop {
+  background: #0d24264d;
+}
+
+.reload-dialog h2 {
+  margin-bottom: 12px;
+  font-size: 19px;
+}
+
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.retry-button {
+  flex-shrink: 0;
+  padding: 8px 12px;
+  border: 1px solid #dfa6a6;
+  border-radius: 9px;
+  color: var(--ink);
+  background: var(--paper);
+  cursor: pointer;
 }
