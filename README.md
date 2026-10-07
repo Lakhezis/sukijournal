@@ -8,7 +8,7 @@ Suki Journal te da una hoja punteada donde podés combinar textos, post-it,
 sellitos y calendarios. Tus páginas se guardan en tu equipo y la aplicación
 funciona sin Internet.
 
-Está en desarrollo para **Debian 13**. La etapa actual es **6 — Calendario**.
+Está en desarrollo para **Debian 13**, con herramientas creativas y archivos `.suki`.
 La interfaz usa HTML, CSS y JavaScript dentro de Tauri 2, con guardado en SQLite.
 
 ## Contenido
@@ -29,6 +29,10 @@ La interfaz usa HTML, CSS y JavaScript dentro de Tauri 2, con guardado en SQLite
 | Post-it | Agregar notas amarillas, rosas, verdes o lilas. |
 | Sellitos | Decorar con Flor, Brote, Estrella, Corazón, Arcoíris y Luna. |
 | Calendario | Colocar un mes y año, con semanas de lunes a domingo. |
+| Washi tape | Pegar cintas de colores con rayas, puntos o cuadrícula. |
+| Dibujo | Dibujar trazos a mano alzada. |
+| Subrayado | Subrayar una selección de texto o post-it. |
+| Remarcado | Destacar frases y días del calendario en amarillo, rosa, verde o lila. |
 
 Podés mover, cambiar de tamaño y eliminar los elementos de la hoja. También
 agregar páginas con `+`, volver a las anteriores y deshacer o rehacer cambios.
@@ -116,15 +120,13 @@ explica cómo recuperar el guardado o recargar la versión del disco.
 
 ## Estado del proyecto
 
-Las etapas de estado y persistencia, editor de texto e historial, Post-it,
-Sellitos y Calendario están implementadas. Washi tape, Dibujo, Subrayado y
-Remarcado siguen en el grupo **Próximamente**.
+Están implementados el autoguardado, el historial, las ocho herramientas y la
+administración de páginas. El menú Archivo permite crear, abrir y guardar
+journals `.suki`, guardar una copia con otro nombre y cambiar el nombre del journal.
 
-El Calendario muestra la grilla mensual y permite cambiar su período. Los eventos,
-feriados y las anotaciones dentro de las celdas quedan fuera de esta etapa.
-También quedan pendientes elegir otro journal, guardar una copia y respaldarlo
-desde la aplicación.
+El calendario permite cambiar su período y remarcar días en cuatro colores.
+Las marcas se conservan por fecha al cambiar de mes o año. Los eventos, feriados
+y anotaciones dentro de las celdas quedan pendientes.
 
-La etapa 6 se verificó con 14 pruebas Rust, 27 JavaScript, 18 grupos de
-comprobaciones de interfaz y dos ejecuciones nativas de cierre y reapertura.
-Encontrás los comandos y el alcance en [Desarrollo y pruebas](docs/desarrollo.md#pruebas).
+Encontrás los comandos, los resultados y el alcance de las verificaciones en
+[Desarrollo y pruebas](docs/desarrollo.md#pruebas).

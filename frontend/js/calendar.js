@@ -1,4 +1,5 @@
 // Calendario gregoriano, independiente de la zona horaria y de servicios externos.
+import { validHighlightColor, MARK_LIMIT } from "./formatting.js";
 export const MONTHS = Object.freeze([
   "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
   "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
@@ -8,6 +9,25 @@ export const WEEKDAYS = Object.freeze(["Lunes", "Martes", "Miércoles", "Jueves"
 export function validPeriod(year, month) {
   return Number.isInteger(year) && year >= 1 && year <= 9999 &&
     Number.isInteger(month) && month >= 1 && month <= 12;
+}
+
+export function validDay(year, month, day) {
+  if (!validPeriod(year, month) || !Number.isInteger(day) || day < 1) return false;
+  const date = new Date(0);
+  date.setUTCFullYear(year, month, 0);
+  return day <= date.getUTCDate();
+}
+
+export function validateDayHighlights(highlights = []) {
+  const dates = new Set();
+  if (!Array.isArray(highlights) || highlights.length > MARK_LIMIT) throw new Error("El remarcado del calendario no es válido.");
+  for (const mark of highlights) {
+    const date = `${mark?.year}-${mark?.month}-${mark?.day}`;
+    if (!mark || !validDay(mark.year, mark.month, mark.day) || !validHighlightColor(mark.color) || dates.has(date)) {
+      throw new Error("El remarcado del calendario no es válido.");
+    }
+    dates.add(date);
+  }
 }
 
 export function calendarWeeks(year, month) {

@@ -5,5 +5,9 @@ export function nativeStorage() {
   return {
     load: () => invoke("load_journal"),
     save: journal => invoke("save_journal", { journal }),
+    fileInfo: () => invoke("journal_file_info"),
+    newJournal: (title, revision) => invoke("new_journal", { title, revision }),
+    openFile: revision => invoke("open_journal_file", { revision }),
+    saveFile: (saveAs, revision) => invoke("save_journal_file", { saveAs, revision }),
   };
 }

@@ -125,6 +125,13 @@ export function createStore(storage, onChange) {
   }
 
   return { load, update, flush, retry: () => journal ? flush() : load(),
+    acceptRevision(revision) {
+      if (pending || generation !== savedGeneration || !journal || !Number.isSafeInteger(revision) || revision < journal.revision) {
+        throw new Error("No se pudo confirmar la revisión del archivo.");
+      }
+      journal.revision = revision;
+      publish();
+    },
     undo: () => restore(past, future), redo: () => restore(future, past),
     endGroup: () => { historyGroup = null; } };
 }

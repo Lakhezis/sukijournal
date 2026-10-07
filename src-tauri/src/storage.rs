@@ -125,6 +125,32 @@ impl Storage {
     }
 
     pub fn save(&mut self, journal: &Journal) -> Result<u64, String> {
+        self.save_with_metadata(journal, None)
+    }
+
+    pub fn metadata(&self) -> Result<Option<String>, String> {
+        let exists: bool = self.connection.query_row(
+            "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'session_metadata')",
+            [], |row| row.get(0),
+        ).map_err(database_error)?;
+        if !exists {
+            return Ok(None);
+        }
+        self.connection
+            .query_row(
+                "SELECT data FROM session_metadata WHERE id = 1",
+                [],
+                |row| row.get(0),
+            )
+            .map(Some)
+            .map_err(database_error)
+    }
+
+    pub fn save_with_metadata(
+        &mut self,
+        journal: &Journal,
+        metadata: Option<&str>,
+    ) -> Result<u64, String> {
         journal.validate()?;
         let transaction = self
             .connection
@@ -158,6 +184,12 @@ impl Storage {
                 params![journal.title, journal.active_page_id, next_revision],
             )
             .map_err(database_error)?;
+        if let Some(data) = metadata {
+            transaction.execute_batch("CREATE TABLE IF NOT EXISTS session_metadata (id INTEGER PRIMARY KEY CHECK(id = 1), data TEXT NOT NULL);")
+                .map_err(database_error)?;
+            transaction.execute("INSERT INTO session_metadata (id, data) VALUES (1, ?1) ON CONFLICT(id) DO UPDATE SET data = excluded.data", [data])
+                .map_err(database_error)?;
+        }
         transaction.commit().map_err(database_error)?;
         Ok(next_revision as u64)
     }

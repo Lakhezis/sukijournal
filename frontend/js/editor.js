@@ -1,11 +1,15 @@
 import { createText, createPostit, createStamp, insertElement, editElementText, moveElement, resizeElement, deleteElement,
-  colorPostit, createCalendar, changeCalendarPeriod, isEditableElement, resizedGeometry, POSTIT_COLORS, PAPER, TEXT_LIMIT } from "./elements.js";
+  colorPostit, createCalendar, changeCalendarPeriod, createWashi, createDrawing, styleDecoration,
+  formatElementText, highlightCalendarDay, isEditableElement, resizedGeometry, POSTIT_COLORS, PAPER, TEXT_LIMIT } from "./elements.js";
 import { findStamp } from "./stamps.js";
 import { MONTHS, validPeriod } from "./calendar.js";
 import { createCalendarView } from "./calendar-view.js";
+import { createTextView } from "./text-view.js";
+import { drawingArtwork, renderDrawing, styleSelect, WASHI_PATTERNS, DRAWING_COLORS, POINT_LIMIT } from "./decorations.js";
+import { validHighlightColor } from "./formatting.js";
 
 // Vista del editor: los gestos usan coordenadas de la hoja y producen cambios de estado.
-export function createEditor({ paper, workspace, getStore, onPlacement }) {
+export function createEditor({ paper, workspace, getStore, onPlacement, onFeedback = () => {} }) {
   const entries = new Map();
   let model = null;
   let ready = false;
@@ -15,20 +19,52 @@ export function createEditor({ paper, workspace, getStore, onPlacement }) {
   let calendarPeriod = null;
   let calendarPrepared = false;
   let gesture = null;
+  let textSelection = null;
+  let calendarSelection = null;
+  let highlightColor = "yellow";
+  let drawingGesture = null;
+  let washiStyle = { color: "pink", pattern: "stripes" };
+  let drawingStyle = { color: "ink", lineWidth: 3 };
   const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+
+  function clearFormattingSelection() {
+    textSelection = null;
+    calendarSelection = null;
+  }
+
+  function keepsFormattingSelection(target) {
+    // El traslado directo a las herramientas de formato conserva la selección.
+    // Cualquier otro destino la abandona, aunque el textarea retenga su rango.
+    if (target.closest?.("#tool-underline, #tool-highlight, #highlight-picker")) return true;
+    if (textSelection && target === entries.get(textSelection.id)?.input) return true;
+    const day = target.closest?.(".calendar-day");
+    return Boolean(calendarSelection && day && Number(day.dataset.day) === calendarSelection.day &&
+      entries.get(calendarSelection.id)?.node.contains(day));
+  }
+
+  for (const type of ["pointerdown", "focusin"]) {
+    document.addEventListener(type, event => {
+      if (!keepsFormattingSelection(event.target)) clearFormattingSelection();
+    }, true);
+  }
 
   function select(id) {
     selectedId = id;
     for (const [key, entry] of entries) entry.node.classList.toggle("is-selected", key === id);
   }
 
-  function setPlacement(value) {
-    placing = ready && ["text", "postit", "stamp", "calendar"].includes(value) ? value : null;
+  function setPlacement(value, { preserveSelection = false } = {}) {
+    if (drawingGesture) endDrawing(false);
+    placing = ready && ["text", "postit", "stamp", "calendar", "washi", "drawing", "highlight"].includes(value) ? value : null;
+    if (placing !== "highlight" && !preserveSelection) clearFormattingSelection();
     if (placing !== "calendar") calendarPrepared = false;
     paper.classList.toggle("is-placing-text", placing === "text");
     paper.classList.toggle("is-placing-postit", placing === "postit");
     paper.classList.toggle("is-placing-stamp", placing === "stamp");
     paper.classList.toggle("is-placing-calendar", placing === "calendar");
+    paper.classList.toggle("is-placing-washi", placing === "washi");
+    paper.classList.toggle("is-drawing", placing === "drawing");
+    for (const entry of entries.values()) entry.calendarView?.setHighlighting(placing === "highlight");
     onPlacement(placing, calendarPrepared);
     if (placing) select(null);
   }
@@ -41,8 +77,9 @@ export function createEditor({ paper, workspace, getStore, onPlacement }) {
   function commitText(id) {
     const entry = entries.get(id);
     if (!ready || !entry?.input || !model?.elements.some(item => isEditableElement(item) && item.id === id)) return;
-    getStore().update(journal => editElementText(journal, model.id, id, entry.input.value),
+    getStore().update(journal => editElementText(journal, model.id, id, entry.input.value, entry.beforeEdit),
       { group: `text:${model.id}:${id}`, deferSave: true });
+    entry.beforeEdit = null;
   }
 
   function endGesture(commit) {
@@ -118,11 +155,15 @@ export function createEditor({ paper, workspace, getStore, onPlacement }) {
     const postit = element.type === "postit";
     const stamp = element.type === "stamp";
     const calendar = element.type === "calendar";
-    const label = calendar ? "calendario" : stamp ? "sellito" : postit ? "post-it" : "texto";
+    const washi = element.type === "washi";
+    const drawing = element.type === "drawing";
+    const label = washi ? "washi tape" : drawing ? "dibujo" : calendar ? "calendario" : stamp ? "sellito" : postit ? "post-it" : "texto";
     const node = document.createElement("div");
     node.className = postit ? "text-element postit-element" : "text-element";
     if (stamp) node.classList.add("stamp-element");
     if (calendar) node.classList.add("calendar-element");
+    if (washi) node.classList.add("washi-element");
+    if (drawing) node.classList.add("drawing-element");
     node.dataset.elementId = element.id;
     node.setAttribute("role", "group");
     node.setAttribute("aria-label", stamp ? `Sellito: ${findStamp(element.stamp).label}` : postit ? "Post-it" : "Bloque de texto");
@@ -143,6 +184,8 @@ export function createEditor({ paper, workspace, getStore, onPlacement }) {
     let input = null;
     let artwork = null;
     let calendarView = null;
+    let decoration = null;
+    let textView = null;
     if (stamp) {
       artwork = document.createElement("img");
       artwork.className = "stamp-artwork";
@@ -152,7 +195,19 @@ export function createEditor({ paper, workspace, getStore, onPlacement }) {
     } else if (calendar) {
       calendarView = createCalendarView((year, month) => {
         if (ready) getStore().update(journal => changeCalendarPeriod(journal, model.id, element.id, year, month));
+      }, day => {
+        const current = model.elements.find(item => item.id === element.id);
+        calendarSelection = { pageId: model.id, id: element.id, year: current.year, month: current.month, day };
+        textSelection = null;
+        select(element.id);
+        if (placing === "highlight") formatSelection("highlight");
       });
+    } else if (drawing) {
+      decoration = drawingArtwork();
+    } else if (washi) {
+      decoration = document.createElement("div");
+      decoration.className = "washi-artwork";
+      decoration.setAttribute("aria-hidden", "true");
     } else {
       input = document.createElement("textarea");
       input.className = "text-input";
@@ -160,6 +215,7 @@ export function createEditor({ paper, workspace, getStore, onPlacement }) {
       input.placeholder = postit ? "Algo para recordar…" : "Escribí tus ideas…";
       input.maxLength = TEXT_LIMIT;
       input.spellcheck = true;
+      textView = createTextView(input);
     }
     const resize = document.createElement("button");
     resize.type = "button";
@@ -168,7 +224,8 @@ export function createEditor({ paper, workspace, getStore, onPlacement }) {
     resize.setAttribute("aria-label", `Cambiar tamaño del ${label}; arrastrá o usá las flechas`);
     resize.title = "Arrastrá para cambiar el tamaño. Flechas: 1 px; Shift + flechas: 24 px.";
     controls.append(move, removeButton);
-    node.append(controls, input || artwork || calendarView.node, resize);
+    node.append(controls, input || artwork || decoration || calendarView.node, resize);
+    if (textView) node.insertBefore(textView.node, input);
     let color = null;
     if (postit) {
       color = document.createElement("select");
@@ -189,7 +246,24 @@ export function createEditor({ paper, workspace, getStore, onPlacement }) {
       // El orden de Tab permite escribir, elegir color y después cambiar tamaño.
       node.insertBefore(color, resize);
     }
-    const entry = { node, input, artwork, calendarView, move, removeButton, resize, color, type: element.type, composing: false };
+    let decorationColor = null, pattern = null, lineWidth = null;
+    if (washi || drawing) {
+      const styles = document.createElement("div");
+      styles.className = "decoration-style";
+      const updateStyle = changes => { if (ready) getStore().update(journal => styleDecoration(journal, model.id, element.id, changes)); };
+      decorationColor = styleSelect(washi ? POSTIT_COLORS : DRAWING_COLORS, `Color del ${label}`, color => updateStyle({ color }));
+      styles.append(decorationColor);
+      if (washi) {
+        pattern = styleSelect(WASHI_PATTERNS, "Diseño del washi tape", pattern => updateStyle({ pattern }));
+        styles.append(pattern);
+      } else {
+        lineWidth = styleSelect([1, 3, 6, 12].map(value => ({ value, label: `${value} px` })), "Grosor del dibujo", value => updateStyle({ lineWidth: Number(value) }));
+        styles.append(lineWidth);
+      }
+      node.insertBefore(styles, resize);
+    }
+    const entry = { node, input, textView, artwork, calendarView, decoration, decorationColor, pattern, lineWidth,
+      move, removeButton, resize, color, type: element.type, composing: false, beforeEdit: null };
     node.addEventListener("focusin", () => select(element.id));
     node.addEventListener("focusout", () => {
       // Esperar el traslado del foco evita ocultar el selector durante Shift+Tab en WebKit.
@@ -199,10 +273,27 @@ export function createEditor({ paper, workspace, getStore, onPlacement }) {
     });
     node.addEventListener("pointerdown", event => {
       select(element.id);
-      setPlacement(false);
+      if (placing !== "highlight" || !event.target.closest(".calendar-day, .text-input")) setPlacement(false);
       if (stamp && event.target === node) move.focus({ preventScroll: true });
     });
     if (input) {
+      const rememberSelection = () => {
+        // Los eventos select pueden llegar después del blur. No deben revivir
+        // una selección abandonada al hacer clic en otro lugar.
+        if (document.activeElement !== input || entries.get(element.id)?.input !== input) return;
+        calendarSelection = null;
+        textSelection = { pageId: model.id, id: element.id, start: input.selectionStart, end: input.selectionEnd };
+      };
+      for (const type of ["select", "keyup", "pointerup", "focus"]) input.addEventListener(type, rememberSelection);
+      input.addEventListener("beforeinput", event => {
+        let start = input.selectionStart, end = input.selectionEnd;
+        if (start === end && event.inputType === "deleteContentBackward") {
+          start = Math.max(0, start - (/[\uDC00-\uDFFF]/.test(input.value[start - 1] || "") ? 2 : 1));
+        } else if (start === end && event.inputType === "deleteContentForward") {
+          end = Math.min(input.value.length, end + (/[\uD800-\uDBFF]/.test(input.value[end] || "") ? 2 : 1));
+        }
+        entry.beforeEdit = { start, end };
+      });
       input.addEventListener("input", () => commitText(element.id));
       input.addEventListener("compositionstart", () => { entry.composing = true; });
       input.addEventListener("compositionend", () => { entry.composing = false; commitText(element.id); });
@@ -224,12 +315,15 @@ export function createEditor({ paper, workspace, getStore, onPlacement }) {
 
   function render(nextPage, editable) {
     ready = editable;
-    if (!ready) { endGesture(false); setPlacement(false); }
+    if (!ready) { endGesture(false); endDrawing(false); setPlacement(false); }
     if (model?.id !== nextPage?.id) {
       endGesture(false);
+      endDrawing(false);
       model = nextPage;
       const focused = paper.contains(document.activeElement);
+      for (const entry of entries.values()) entry.textView?.destroy();
       entries.clear();
+      clearFormattingSelection();
       paper.replaceChildren();
       selectedId = null;
       setPlacement(false);
@@ -252,6 +346,7 @@ export function createEditor({ paper, workspace, getStore, onPlacement }) {
       if (entry.input) {
         if (!entry.composing && entry.input.value !== element.text) entry.input.value = element.text;
         entry.input.readOnly = !ready;
+        entry.textView.render(element);
       }
       if (entry.artwork) {
         const stamp = findStamp(element.stamp);
@@ -260,7 +355,17 @@ export function createEditor({ paper, workspace, getStore, onPlacement }) {
       }
       if (entry.calendarView) {
         entry.calendarView.render(element, ready);
+        entry.calendarView.setHighlighting(placing === "highlight");
         entry.node.setAttribute("aria-label", `Calendario: ${MONTHS[element.month - 1]} ${element.year}`);
+      }
+      if (entry.decoration) {
+        entry.node.setAttribute("aria-label", element.type === "washi" ? "Washi tape" : "Dibujo a mano alzada");
+        if (element.type === "drawing") renderDrawing(entry.decoration, element);
+        entry.node.dataset.color = element.color;
+        if (entry.pattern) { entry.pattern.value = element.pattern; entry.pattern.disabled = !ready; entry.node.dataset.pattern = element.pattern; }
+        if (entry.lineWidth) { entry.lineWidth.value = element.lineWidth; entry.lineWidth.disabled = !ready; }
+        entry.decorationColor.value = element.color;
+        entry.decorationColor.disabled = !ready;
       }
       for (const button of [entry.move, entry.removeButton, entry.resize]) button.disabled = !ready;
       if (entry.color) {
@@ -269,15 +374,23 @@ export function createEditor({ paper, workspace, getStore, onPlacement }) {
         entry.node.dataset.color = element.color;
       }
     }
-    for (const id of remaining) { entries.get(id).node.remove(); entries.delete(id); }
+    for (const id of remaining) { entries.get(id).textView?.destroy(); entries.get(id).node.remove(); entries.delete(id); }
     if (selectedId && !entries.has(selectedId)) select(null);
+    if (textSelection && !entries.get(textSelection.id)?.input) textSelection = null;
+    if (calendarSelection) {
+      const current = model?.elements.find(element => element.id === calendarSelection.id);
+      if (current?.type !== "calendar" || current.year !== calendarSelection.year || current.month !== calendarSelection.month) calendarSelection = null;
+    }
   }
 
   function addAt(x, y) {
     if (!ready || !model) return;
+    if (placing === "highlight") return;
     if (placing === "calendar" && !calendarPrepared) return;
     const id = crypto.randomUUID();
-    const element = placing === "calendar" ? createCalendar(id, calendarPeriod.year, calendarPeriod.month, x, y)
+    const element = placing === "washi" ? createWashi(id, x, y, washiStyle.color, washiStyle.pattern)
+      : placing === "drawing" ? createDrawing(id, [[x + 14, y + 28], [x + 108, y + 80]], drawingStyle.color, drawingStyle.lineWidth)
+      : placing === "calendar" ? createCalendar(id, calendarPeriod.year, calendarPeriod.month, x, y)
       : placing === "stamp" ? createStamp(id, stampValue, x, y)
       : placing === "postit" ? createPostit(id, x, y) : createText(id, x, y);
     if (getStore().update(journal => insertElement(journal, model.id, element))) {
@@ -290,7 +403,10 @@ export function createEditor({ paper, workspace, getStore, onPlacement }) {
 
   paper.addEventListener("click", event => {
     if (event.target !== paper || !ready) return;
-    if (!placing) { select(null); return; }
+    clearFormattingSelection();
+    select(null);
+    if (!placing) return;
+    if (placing === "drawing") return;
     const rect = paper.getBoundingClientRect();
     addAt(event.clientX - rect.left - paper.clientLeft, event.clientY - rect.top - paper.clientTop);
   });
@@ -299,6 +415,7 @@ export function createEditor({ paper, workspace, getStore, onPlacement }) {
     if (event.key === "Escape") {
       event.preventDefault();
       endGesture(false);
+      endDrawing(false);
       setPlacement(false);
       select(null);
       paper.focus({ preventScroll: true });
@@ -308,13 +425,96 @@ export function createEditor({ paper, workspace, getStore, onPlacement }) {
       const visible = workspace.getBoundingClientRect();
       addAt(Math.max(24, visible.left + 24 - rect.left - paper.clientLeft),
         Math.max(24, visible.top + 24 - rect.top - paper.clientTop));
-    } else if (event.key === "Delete" && selectedId && event.target.tagName === "BUTTON") {
+    } else if (event.key === "Delete" && selectedId && event.target.tagName === "BUTTON" && !event.target.closest(".calendar-day")) {
       event.preventDefault();
       remove(selectedId);
     }
   });
 
-  return { render, setPlacement,
+  function paperPoint(event) {
+    const rect = paper.getBoundingClientRect();
+    return [clamp(event.clientX - rect.left - paper.clientLeft, 0, PAPER.width),
+      clamp(event.clientY - rect.top - paper.clientTop, 0, PAPER.height)];
+  }
+  function sampleDrawing(event) {
+    if (!drawingGesture || drawingGesture.pointerId !== event.pointerId) return;
+    const point = paperPoint(event), last = drawingGesture.points.at(-1);
+    if (Math.hypot(point[0] - last[0], point[1] - last[1]) < 1 || drawingGesture.points.length >= POINT_LIMIT) return;
+    drawingGesture.points.push(point);
+    drawingGesture.preview.firstElementChild.setAttribute("d", drawingGesture.points.map(([x, y], i) => `${i ? "L" : "M"}${x},${y}`).join(" "));
+  }
+  function endDrawing(commit) {
+    if (!drawingGesture) return;
+    const current = drawingGesture;
+    drawingGesture = null;
+    current.preview.remove();
+    if (paper.hasPointerCapture(current.pointerId)) paper.releasePointerCapture(current.pointerId);
+    if (commit && ready && model?.id === current.pageId) {
+      const element = createDrawing(crypto.randomUUID(), current.points, drawingStyle.color, drawingStyle.lineWidth);
+      if (getStore().update(journal => insertElement(journal, current.pageId, element))) select(element.id);
+    }
+  }
+  paper.addEventListener("pointerdown", event => {
+    if (!ready || placing !== "drawing" || event.button !== 0 ||
+      event.target.closest(".text-controls, .text-resize, .decoration-style, .calendar-period")) return;
+    event.preventDefault();
+    event.stopPropagation();
+    endDrawing(false);
+    const preview = drawingArtwork();
+    preview.classList.add("drawing-preview");
+    preview.setAttribute("viewBox", `0 0 ${PAPER.width} ${PAPER.height}`);
+    preview.firstElementChild.setAttribute("stroke", DRAWING_COLORS.find(color => color.value === drawingStyle.color).css);
+    preview.firstElementChild.setAttribute("stroke-width", drawingStyle.lineWidth);
+    paper.append(preview);
+    paper.setPointerCapture(event.pointerId);
+    drawingGesture = { pageId: model.id, pointerId: event.pointerId, points: [paperPoint(event)], preview };
+    getStore().endGroup();
+  }, true);
+  paper.addEventListener("pointermove", sampleDrawing);
+  paper.addEventListener("pointerup", event => {
+    if (drawingGesture?.pointerId === event.pointerId) { sampleDrawing(event); endDrawing(true); }
+  });
+  for (const type of ["pointercancel", "lostpointercapture"]) paper.addEventListener(type, () => endDrawing(false));
+
+  function formatSelection(kind, toggle = true, feedback = true) {
+      const range = textSelection;
+      // Cambiar de herramienta siempre cierra los paneles anteriores, incluso
+      // cuando todavía no se haya seleccionado texto ni un día.
+      setPlacement(kind === "highlight" ? "highlight" : null, { preserveSelection: true });
+      if (kind === "highlight" && ready && calendarSelection?.pageId === model?.id) {
+        const day = calendarSelection, current = model.elements.find(item => item.id === day.id);
+        if (current?.type === "calendar" && current.year === day.year && current.month === day.month) {
+          return getStore().update(journal => highlightCalendarDay(journal, model.id, day.id, day.day, highlightColor, toggle));
+        }
+      }
+      if (!ready || range?.pageId !== model?.id || range.start === range.end || !entries.get(range.id)?.input) {
+        if (feedback) onFeedback(kind === "highlight" ? "Seleccioná una frase o hacé clic en los días de un calendario para remarcarlos." : "Seleccioná una palabra o frase en un texto o post-it para subrayarla.");
+        return false;
+      }
+      const input = entries.get(range.id).input;
+      const changed = getStore().update(journal => formatElementText(journal, model.id, range.id, kind, range.start, range.end, highlightColor, toggle));
+      if (changed) {
+        select(range.id);
+        input.focus({ preventScroll: true });
+        input.setSelectionRange(range.start, range.end);
+        textSelection = range;
+        onFeedback(kind === "underline" ? "Subrayado actualizado." : "Remarcado actualizado.");
+      }
+      return changed;
+  }
+
+  return { render, setPlacement, formatSelection,
+    setHighlightColor(color) {
+      if (!validHighlightColor(color)) return;
+      highlightColor = color;
+      if (placing === "highlight") formatSelection("highlight", false, false);
+    },
+    setDrawingStyle(color, lineWidth) {
+      if (DRAWING_COLORS.some(choice => choice.value === color) && Number.isFinite(lineWidth) && lineWidth >= 1 && lineWidth <= 12) drawingStyle = { color, lineWidth };
+    },
+    setWashiStyle(color, pattern) {
+      if (POSTIT_COLORS.some(choice => choice.value === color) && WASHI_PATTERNS.some(choice => choice.value === pattern)) washiStyle = { color, pattern };
+    },
     chooseCalendar(year, month) {
       if (!ready || !validPeriod(year, month)) return false;
       calendarPeriod = { year, month };
@@ -337,6 +537,7 @@ export function createEditor({ paper, workspace, getStore, onPlacement }) {
     },
     finish() {
       endGesture(true);
+      endDrawing(true);
       for (const [id, entry] of entries) { commitText(id); entry.calendarView?.finish(); }
       getStore().endGroup();
     },

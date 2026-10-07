@@ -64,10 +64,21 @@
           <div>
             <p class="eyebrow">Suki Journal</p>
             <h1>Mi Bullet Journal</h1>
+            <p class="file-caption"><span id="journal-file-label">Sin archivo</span><span id="journal-file-status"></span></p>
           </div>
         </div>
 
         <div class="topbar-actions">
+          <details class="file-menu" id="file-menu">
+            <summary>Archivo</summary>
+            <div class="file-menu-items">
+              <button type="button" data-file-action="new" disabled>Nuevo journal <kbd>Ctrl+N</kbd></button>
+              <button type="button" data-file-action="open" disabled>Abrir… <kbd>Ctrl+O</kbd></button>
+              <button type="button" data-file-action="save" disabled>Guardar <kbd>Ctrl+S</kbd></button>
+              <button type="button" data-file-action="save-as" disabled>Guardar como… <kbd>Ctrl+Shift+S</kbd></button>
+              <button type="button" data-file-action="rename" disabled>Cambiar nombre del journal…</button>
+            </div>
+          </details>
           <div class="history-controls" role="group" aria-label="Historial">
             <button class="icon-button" id="undo" type="button" disabled aria-label="Deshacer" title="Deshacer (Ctrl+Z)">
               <svg class="icon" aria-hidden="true"><use href="#icon-undo" /></svg>
@@ -130,25 +141,44 @@
         </form>
         <p class="tool-help" id="calendar-tool-help" hidden>Hacé clic en la hoja para colocar el calendario. Con teclado, pulsá Enter en la hoja. Escape cancela.</p>
 
-        <div class="tool-group future-tools" role="group" aria-labelledby="future-tools-heading">
-          <p class="group-label" id="future-tools-heading">Próximamente</p>
-          <button class="tool-button" type="button" disabled title="Washi tape — próximamente">
+        <div class="tool-group future-tools" role="group" aria-labelledby="creative-tools-heading">
+          <p class="group-label" id="creative-tools-heading">Crear y destacar</p>
+          <button class="tool-button" id="tool-washi" type="button" disabled aria-pressed="false" title="Washi tape">
             <span class="tool-icon"><svg class="icon" aria-hidden="true"><use href="#icon-washi" /></svg></span>
             <span>Washi tape</span>
           </button>
-          <button class="tool-button" type="button" disabled title="Dibujo — próximamente">
+          <button class="tool-button" id="tool-drawing" type="button" disabled aria-pressed="false" title="Dibujo">
             <span class="tool-icon"><svg class="icon" aria-hidden="true"><use href="#icon-drawing" /></svg></span>
             <span>Dibujo</span>
           </button>
-          <button class="tool-button" type="button" disabled title="Subrayado — próximamente">
+          <button class="tool-button" id="tool-underline" type="button" disabled aria-pressed="false" title="Subrayado">
             <span class="tool-icon"><svg class="icon" aria-hidden="true"><use href="#icon-underline" /></svg></span>
             <span>Subrayado</span>
           </button>
-          <button class="tool-button" type="button" disabled title="Remarcado — próximamente">
+          <button class="tool-button" id="tool-highlight" type="button" disabled aria-pressed="false" title="Remarcado">
             <span class="tool-icon"><svg class="icon" aria-hidden="true"><use href="#icon-highlight" /></svg></span>
             <span>Remarcado</span>
           </button>
         </div>
+
+        <fieldset class="creative-picker" id="washi-picker" hidden>
+          <legend>Washi tape</legend>
+          <label for="washi-color">Color</label><select id="washi-color"></select>
+          <label for="washi-pattern">Diseño</label><select id="washi-pattern"></select>
+          <p class="tool-help">Hacé clic en la hoja para pegar la cinta. También podés colocarla con Enter. Escape cancela.</p>
+        </fieldset>
+        <fieldset class="creative-picker" id="drawing-picker" hidden>
+          <legend>Dibujo a mano alzada</legend>
+          <label for="drawing-color">Color</label><select id="drawing-color"></select>
+          <label for="drawing-width">Grosor</label><select id="drawing-width"><option value="1">1 px</option><option value="3" selected>3 px</option><option value="6">6 px</option><option value="12">12 px</option></select>
+          <p class="tool-help">Arrastrá sobre la hoja para dibujar. Podés hacer varios trazos. Enter coloca un trazo simple; Escape termina.</p>
+        </fieldset>
+        <fieldset class="creative-picker" id="highlight-picker" hidden>
+          <legend>Remarcado</legend>
+          <label for="highlight-color">Color</label><select id="highlight-color"></select>
+          <p class="tool-help">Seleccioná una frase y pulsá Remarcado, o hacé clic en los días de un calendario. El color cambia la selección activa; al salir del elemento se usa para la próxima marca. Repetí con el mismo color para quitarlo. Escape termina.</p>
+        </fieldset>
+        <p class="tool-help">Para Subrayado, seleccioná una frase en un texto o post-it y pulsá su herramienta. Volvé a pulsarla para quitar el formato.</p>
 
         <div class="sidebar-decoration" aria-hidden="true">
           <img src="assets/brand/sprig.svg" alt="" width="144" height="130" />
@@ -162,6 +192,7 @@
           <button class="retry-button" id="retry-storage" type="button">Reintentar</button>
           <button class="retry-button" id="reload-journal" type="button" hidden>Recargar desde disco</button>
         </div>
+        <div class="file-notice"><p id="file-feedback" role="status"></p><button class="retry-button" id="retry-file" type="button" hidden>Reintentar archivo</button></div>
         <p class="unknown-elements" id="unknown-elements" hidden>Esta página contiene elementos que todavía no se pueden mostrar. Se conservarán al guardar.</p>
         <div class="workspace-heading">
           <p><span id="current-page-title">Cargando journal…</span> <span class="page-divider" aria-hidden="true">/</span> <span class="workspace-subtitle" id="page-subtitle"></span></p>
@@ -180,9 +211,45 @@
             <svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg>
           </button>
         </nav>
+        <div class="page-actions" role="group" aria-label="Administrar la página activa">
+          <button class="retry-button" id="rename-page" type="button" disabled>Nombre</button>
+          <button class="retry-button" id="delete-page" type="button" disabled>Eliminar</button>
+        </div>
         <span class="page-count" id="page-count"></span>
       </footer>
     </div>
+    <dialog class="reload-dialog" id="name-dialog" aria-labelledby="name-heading">
+      <form method="dialog">
+        <h2 id="name-heading">Nombre</h2>
+        <label for="name-input">Elegí un nombre</label>
+        <input id="name-input" type="text" required maxlength="400" autofocus />
+        <div class="dialog-actions">
+          <button class="retry-button" value="cancel" formnovalidate>Cancelar</button>
+          <button class="retry-button" value="apply">Aceptar</button>
+        </div>
+      </form>
+    </dialog>
+    <dialog class="reload-dialog" id="delete-page-dialog" aria-labelledby="delete-page-heading">
+      <form method="dialog">
+        <h2 id="delete-page-heading">Eliminar página</h2>
+        <p>Se eliminará «<span id="delete-page-name"></span>» con sus elementos. Podés recuperarla con Deshacer. Si es la última página, quedará una nueva hoja vacía.</p>
+        <div class="dialog-actions">
+          <button class="retry-button" value="cancel" autofocus>Cancelar</button>
+          <button class="retry-button" value="delete">Eliminar página</button>
+        </div>
+      </form>
+    </dialog>
+    <dialog class="reload-dialog" id="switch-journal-dialog" aria-labelledby="switch-journal-heading">
+      <form method="dialog">
+        <h2 id="switch-journal-heading">Guardar antes de cambiar de journal</h2>
+        <p>Hay cambios que todavía no guardaste en un archivo .suki. Elegí Guardar para conservarlos o Descartar para continuar con otro journal.</p>
+        <div class="dialog-actions">
+          <button class="retry-button" value="cancel" autofocus>Cancelar</button>
+          <button class="retry-button" value="discard">Descartar</button>
+          <button class="retry-button" value="save">Guardar</button>
+        </div>
+      </form>
+    </dialog>
     <dialog class="reload-dialog" id="reload-dialog" aria-labelledby="reload-heading">
       <form method="dialog">
         <h2 id="reload-heading">¿Descartar los cambios sin guardar?</h2>

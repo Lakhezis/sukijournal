@@ -23,7 +23,20 @@ Elegí **Texto** y hacé clic en la hoja. Podés escribir texto plano en varias
 líneas, mover el bloque, cambiar su tamaño y eliminarlo con `×`.
 
 Si el contenido ocupa más espacio, recorré el campo o agrandá el bloque.
-La tipografía es fija; el formato enriquecido queda para más adelante.
+La tipografía es fija. Podés subrayar o remarcar una selección del texto.
+
+## Subrayado y remarcado
+
+Seleccioná una frase en un texto o post-it y pulsá **Subrayado** o **Remarcado**.
+Repetir la acción quita el formato. Subrayado cierra el panel de color y diseño
+de la herramienta anterior, incluso si todavía no seleccionaste una frase.
+
+Remarcado abre un selector de **amarillo, rosa, verde o lila**. Cambiar el color
+recolorea la selección actual; podés combinar distintos colores dentro del mismo
+texto. Si hacés clic fuera del elemento o seleccionás otro, el color elegido
+se usa para el próximo remarcado y no cambia las marcas anteriores.
+El formato se conserva al editar, guardar y reabrir el journal, y admite
+Deshacer y Rehacer. `Escape` cierra el panel de remarcado.
 
 ## Post-it
 
@@ -73,6 +86,20 @@ El mes colocado queda fijo aunque avance la fecha del equipo.
 También podés mover, cambiar de tamaño y eliminar el calendario.
 La grilla de esta etapa no incluye eventos, feriados ni anotaciones en las celdas.
 `Escape` cancela tanto desde el selector como desde la hoja.
+
+Para destacar días, elegí **Remarcado**, seleccioná un color y hacé clic en los
+días del calendario. Otro clic con el mismo color quita la marca; un color
+diferente la cambia. También podés seleccionar primero un día y después pulsar
+Remarcado. Cambiar el color del panel recolorea el día mientras siga seleccionado.
+Al salir del calendario, el color elegido se usa para la próxima marca.
+
+Las marcas pertenecen a fechas concretas: si cambiás de mes o año, no pasan a
+los días del nuevo período. Vuelven a aparecer al regresar a la fecha original.
+Se conservan en el autoguardado y en los archivos `.suki`.
+
+Con Remarcado activo, `Tab` permite entrar a los días del calendario. Las flechas
+recorren días o semanas; `Home` y `End` van al primer y último día. `Enter` o
+la barra espaciadora remarcan el día enfocado. `Escape` termina la herramienta.
 
 ## Deshacer y rehacer
 

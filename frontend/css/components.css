@@ -175,3 +175,25 @@ button:disabled {
   background: var(--paper);
   cursor: pointer;
 }
+
+.journal-heading { min-width: 0; }
+.journal-heading h1 { max-width: min(36vw, 460px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.file-caption { display: flex; gap: 8px; max-width: min(36vw, 460px); margin-top: 3px; font-size: 10px; color: var(--muted); }
+.file-caption span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#journal-file-label { max-width: 140px; flex-shrink: 0; }
+#journal-file-status[data-dirty="true"] { color: #976456; }
+.file-menu { position: relative; font-size: 13px; }
+.file-menu summary { cursor: pointer; padding: 9px 13px; border: 1px solid var(--border); border-radius: 10px; background: var(--paper); }
+.file-menu summary:focus-visible { outline: 2px solid var(--focus); outline-offset: 4px; }
+.file-menu-items { position: absolute; top: calc(100% + 8px); right: 0; z-index: 10; width: 270px; padding: 6px; border: 1px solid var(--border); border-radius: 10px; background: var(--paper); box-shadow: 0 5px 20px #5c453522; }
+.file-menu-items button { display: flex; justify-content: space-between; gap: 12px; width: 100%; padding: 9px; border: 0; border-radius: 5px; color: var(--ink); background: transparent; text-align: left; cursor: pointer; font-size: 12px; }
+.file-menu-items button:enabled:hover { background: var(--pink); }
+.file-menu-items kbd { color: var(--muted); font: 10px "Nunito", sans-serif; }
+.page-actions { display: flex; gap: 6px; }
+.page-actions button { padding: 7px 9px; font-size: 11px; }
+.file-notice { display: flex; align-items: center; gap: 8px; }
+#file-feedback:empty { display: none; }
+#file-feedback { padding: 10px 0 0; color: var(--olive); font-size: 12px; }
+#file-feedback[data-error="true"] { color: #9b514c; }
+#name-input { display: block; width: 100%; margin-top: 8px; padding: 9px; border: 1px solid var(--border); border-radius: 6px; font: inherit; }
+@media (max-width: 1000px) { .topbar-actions { gap: 12px; } .pagebar { gap: 14px; } .pagebar-label { width: 178px; } }

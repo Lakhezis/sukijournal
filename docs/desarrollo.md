@@ -100,12 +100,15 @@ node --experimental-default-type=module tests/editor.test.mjs
 node --experimental-default-type=module tests/postit.test.mjs
 node --experimental-default-type=module tests/stamps.test.mjs
 node --experimental-default-type=module tests/calendar.test.mjs
+node --experimental-default-type=module tests/features.test.mjs
 ```
 
 Estas pruebas cubren cambios durante un guardado, confirmación de revisiones,
 reintentos, errores de carga, operaciones sobre elementos y deshacer/rehacer.
 El calendario también se revisa a lo largo de los 4.800 meses de un ciclo
 gregoriano de 400 años.
+Las herramientas creativas se prueban junto con el formato de texto, los nombres
+del journal y las páginas, la eliminación de páginas y su recuperación con Deshacer.
 
 ### Interfaz en WebKitGTK
 
@@ -132,6 +135,14 @@ Primero compilá la versión release con los cambios actuales. Después ejecutá
 La prueba crea un journal temporal, agrega páginas, texto, un post-it, un sellito
 y un calendario. Cambia color, dibujo y período, mueve y redimensiona con teclado,
 prueba deshacer/rehacer, cierra con cambios pendientes y vuelve a abrir.
+También aplica subrayado y remarcado, coloca washi tape y un dibujo con teclado,
+renombra y elimina una página y la recupera con Deshacer. Usa los diálogos GTK
+reales para cancelar un guardado, guardar dos journals separados y abrir el
+primero, comprobando que conserva sus elementos y formato.
+El recorrido también elige rosa desde el selector de remarcado y marca un día
+del calendario con teclado; ambos colores se conservan en el archivo y al reabrir.
+Comprueba que cambiar el color después de hacer clic en la hoja libre no
+recolorea el texto ni el día anterior.
 El journal personal se mantiene separado del journal de prueba.
 
 Requiere X11, `xwininfo`, `xprop` y `libXtst`.
@@ -152,3 +163,70 @@ Las comprobaciones gráficas se completaron en una pantalla X11 virtual aislada.
 
 Los scripts reproducibles están en `tests/`. Las capturas y los resultados locales
 quedan en `verification/`, una carpeta excluida de Git.
+
+## Verificación de herramientas creativas y archivos
+
+Verificación completada el **7 de octubre de 2026**:
+
+| Grupo | Resultado |
+| --- | --- |
+| Rust | 17 pruebas aprobadas. |
+| JavaScript | 32 pruebas aprobadas en seis suites. |
+| Interfaz | 24 grupos aprobados, sin errores de carga ni de CSP. |
+| Ejecución nativa | Dos ejecuciones aprobadas, con cierre y reapertura. |
+| Compilación | Ejecutable release actualizado. |
+
+Se verificaron washi tape, dibujo a mano alzada, subrayado y remarcado,
+administración de páginas y archivos `.suki` independientes del autoguardado.
+Los diálogos GTK reales se probaron con dos journals temporales, conservando los
+seis tipos de elementos y el formato al guardar, abrir y reabrir la aplicación.
+La primera ejecución nativa dejó un aviso de GTK sobre un evento en un widget
+sin realizar durante el selector de archivos. La apertura, el guardado y la
+reapertura completaron sus comprobaciones; el aviso queda registrado en el log.
+
+Durante las pruebas se corrigió el orden de las pestañas al recuperar con Deshacer
+una página eliminada. La comprobación gráfica ahora verifica que recuperar la
+primera página también restablece su posición original.
+
+Las pruebas gráficas usaron una pantalla X11 virtual aislada y los resultados
+locales quedaron en `verification/stage7-*-results.json`.
+
+## Verificación del remarcado en colores
+
+Verificación completada el **7 de octubre de 2026**:
+
+| Grupo | Resultado |
+| --- | --- |
+| Rust | 19 pruebas aprobadas. |
+| JavaScript | 35 pruebas aprobadas en seis suites. |
+| Interfaz | 27 grupos aprobados, sin errores de carga ni de CSP. |
+| Ejecución nativa | Dos ejecuciones aprobadas, con colores de texto y calendario. |
+| Compilación | Ejecutable release actualizado. |
+
+La interfaz comprueba los cuatro colores, recoloreado parcial de texto, cierre
+de paneles al elegir Subrayado y remarcado de días con mouse y teclado. Se prueba
+la conservación de fechas al cambiar de período, Deshacer/Rehacer, recuperación
+ante fallos de guardado y recarga. Los remarcados anteriores sin color explícito
+siguen mostrándose en amarillo.
+
+Los resultados de esta verificación quedaron en `verification/highlight-*-results.json`.
+
+## Selección del remarcado
+
+La selección de formato se descarta al hacer clic fuera del elemento, enfocar
+otro control, cambiar de herramienta, cancelar con Escape, eliminar el elemento
+o cambiar el período del calendario. Pasar directamente a Subrayado, Remarcado
+o su selector conserva la selección para aplicar o cambiar el formato.
+Los eventos `select` que llegan después de perder el foco no recuperan rangos
+anteriores. Elegir un color sin selección prepara la próxima marca y no cambia
+el journal ni su historial.
+
+Las pruebas de interfaz cubren texto, post-it y calendario, clics reales en
+la hoja y las herramientas, cambios de foco con teclado, eventos tardíos,
+el color de la próxima marca y la ausencia de guardados adicionales.
+
+Verificado el **7 de octubre de 2026**: seis suites JavaScript aprobadas,
+29 grupos de interfaz sin errores de carga ni de CSP y dos ejecuciones del
+release actualizado, incluyendo guardado y reapertura. Los resultados quedaron
+en `verification/highlight-deselection-frontend-results.json` y
+`verification/highlight-deselection-native-results.json`.

@@ -78,6 +78,23 @@ def key(keysym):
     time.sleep(0.05)
 
 
+def scroll_top(native, x):
+    root_x, root_y, _, _ = geometry(native)
+    xtest.XTestFakeMotionEvent(display, -1, root_x + x, root_y + 200, 0)
+    for _ in range(40):
+        xtest.XTestFakeButtonEvent(display, 4, 1, 0)
+        xtest.XTestFakeButtonEvent(display, 4, 0, 0)
+    x11.XFlush(display)
+    time.sleep(0.3)
+
+
+def click_tool(native, y):
+    # El foco del catálogo puede desplazar la barra lateral. Restablecerla antes
+    # de usar las coordenadas de sus herramientas.
+    scroll_top(native, 100)
+    click(native, 100, y)
+
+
 def modified_key(keysym, modifier=0xFFE1):
     code = x11.XKeysymToKeycode(display, modifier)
     xtest.XTestFakeKeyEvent(display, code, 1, 0)
@@ -86,9 +103,62 @@ def modified_key(keysym, modifier=0xFFE1):
     x11.XFlush(display)
 
 
+def native_dialog(title):
+    found = []
+
+    def opened():
+        tree = subprocess.check_output(["xwininfo", "-root", "-tree"], text=True)
+        for match in re.finditer(r'(0x[0-9a-f]+) "' + re.escape(title) + r'"', tree):
+            info = subprocess.check_output(["xwininfo", "-id", match.group(1)], text=True)
+            # GTK conserva ventanas ocultas de selectores cancelados. Esperar la
+            # ventana visible evita enviar teclas al selector anterior.
+            if 'Map State: IsViewable' in info:
+                found.append(int(match.group(1), 16))
+                return True
+        return False
+
+    wait_for(opened)
+    x11.XSetInputFocus(display, found[0], 1, 0)
+    x11.XFlush(display)
+    time.sleep(0.3)
+    return GdkX11.X11Window.foreign_new_for_display(Gdk.Display.get_default(), found[0])
+
+
+def enter_file_path(title, path):
+    dialog = native_dialog(title)
+    screenshot(dialog, 'stage7-native-file-dialog.png')
+    modified_key(ord('l'), modifier=0xFFE3)  # Ctrl+L: ubicación del selector GTK.
+    modified_key(ord('a'), modifier=0xFFE3)  # Incluir también la extensión preseleccionada.
+    type_ascii(str(path))
+    if title.startswith('Abrir'):
+        key(0xFF0D)  # Resolver la ubicación antes de confirmar la selección.
+        time.sleep(0.5)
+    _, _, width, height = geometry(dialog)
+    info = subprocess.check_output(['xwininfo', '-id', hex(dialog.get_xid())], text=True)
+    if 'Map State: IsViewable' in info:
+        print(f'Selector {title}: {geometry(dialog)}', flush=True)
+        click(dialog, width - 50, height - 24)  # Confirmar con Guardar o Abrir.
+    time.sleep(0.3)
+    screenshot(Gdk.get_default_root_window(), 'stage7-native-file-choice.png')
+
+
+def accept_name(value):
+    time.sleep(0.2)
+    type_ascii(value)  # El campo se abre con el nombre seleccionado.
+    key(0xFF09)  # Cancelar.
+    key(0xFF09)  # Aceptar.
+    key(0xFF0D)
+
+
 def type_ascii(value):
+    shifted = dict(zip('~!@#$%^&*()_+{}|:"<>?', '`1234567890-=[]\\;\',./'))
     for character in value:
-        key(0xFF0D if character == '\n' else ord(character))
+        if character.isupper():
+            modified_key(ord(character.lower()))
+        elif character in shifted:
+            modified_key(ord(shifted[character]))
+        else:
+            key(0xFF0D if character == '\n' else ord(character))
         time.sleep(0.02)
 
 
@@ -99,7 +169,7 @@ def screenshot(native, name):
     pixbuf.savev(str(OUT / name), "png", [], [])
 
 
-with tempfile.TemporaryDirectory(prefix="suki-stage6-", dir=OUT) as temporary:
+with tempfile.TemporaryDirectory(prefix="suki-stage7-", dir=OUT) as temporary:
     environment = dict(os.environ, XDG_DATA_HOME=temporary,
                        XDG_CACHE_HOME=str(Path(temporary) / "cache"),
                        XDG_CONFIG_HOME=str(Path(temporary) / "config"))
@@ -115,9 +185,17 @@ with tempfile.TemporaryDirectory(prefix="suki-stage6-", dir=OUT) as temporary:
         except sqlite3.Error:
             return None
 
+    def file_path():
+        try:
+            with sqlite3.connect(database) as connection:
+                row = connection.execute("SELECT data FROM session_metadata WHERE id = 1").fetchone()
+                return json.loads(row[0]).get('path') if row else None
+        except sqlite3.Error:
+            return None
+
     reports = []
     for run in (1, 2):
-        log_path = OUT / f"stage6-native-{run}.log"
+        log_path = OUT / f"stage7-native-{run}.log"
         with log_path.open("w") as log:
             process = subprocess.Popen([str(EXECUTABLE)],
                                        cwd=ROOT, env=environment, stdout=log, stderr=log)
@@ -144,18 +222,14 @@ with tempfile.TemporaryDirectory(prefix="suki-stage6-", dir=OUT) as temporary:
                 x11.XFlush(display)
                 if run == 1:
                     assert len(state()["pages"]) == 1
-                    screenshot(native, "stage6-native-initial.png")
+                    screenshot(native, "stage7-native-initial.png")
                     click(native, 364, geometry(native)[3] - 36)
                     wait_for(lambda: len(state()["pages"]) == 2)
                     key(0xFF0D)  # Enter: el botón + conserva su foco.
                     wait_for(lambda: len(state()["pages"]) == 3)
                     click(native, 276, geometry(native)[3] - 36)  # Página 1.
                     wait_for(lambda: state()["journal"][1] == "page-1")
-                    # Desde Página 1: retroceder a la hoja, al área de trabajo y a Texto.
-                    for _ in range(3):
-                        modified_key(0xFF09)  # Shift+Tab.
-                        time.sleep(0.1)
-                    key(0xFF0D)  # Activar Texto y enfocar la hoja.
+                    click_tool(native, 387)  # Texto.
                     key(0xFF0D)  # Crear un texto en la zona visible.
                     wait_for(lambda: len(json.loads(state()["pages"][0][2])) == 1)
                     type_ascii('mis ideas\nsegunda linea')
@@ -178,7 +252,7 @@ with tempfile.TemporaryDirectory(prefix="suki-stage6-", dir=OUT) as temporary:
                     key(ord('x'))
                     final_text = 'mis ideas\nsegunda lineax'
                     wait_for(lambda: json.loads(state()['pages'][0][2])[0]['text'] == final_text)
-                    click(native, 100, 228)  # Post-it en la barra lateral.
+                    click_tool(native, 228)  # Post-it.
                     time.sleep(0.2)
                     key(0xFF0D)  # Crear la nota con Enter en la hoja enfocada.
                     wait_for(lambda: len(json.loads(state()['pages'][0][2])) == 2)
@@ -210,16 +284,17 @@ with tempfile.TemporaryDirectory(prefix="suki-stage6-", dir=OUT) as temporary:
                     key(ord('x'))
                     final_note = 'recordatorios\nregar plantasx'
                     wait_for(lambda: json.loads(state()['pages'][0][2])[1]['text'] == final_note)
-                    click(native, 100, 281)  # Sellitos; abre el catálogo y enfoca la hoja.
+                    click_tool(native, 281)  # Sellitos; abre el catálogo y enfoca la hoja.
                     time.sleep(0.2)
-                    for _ in range(2):
-                        modified_key(0xFF09)  # Hoja -> área de trabajo -> última opción (Luna).
+                    for _ in range(6):
+                        # Hoja -> área de trabajo -> cuatro herramientas creativas -> Luna.
+                        modified_key(0xFF09)
                         time.sleep(0.1)
-                    screenshot(native, 'stage6-native-picker-focus.png')
+                    screenshot(native, 'stage7-native-picker-focus.png')
                     key(0xFF0D)  # Elegir Luna y volver a la hoja.
                     key(0xFF0D)  # Colocar el dibujo con teclado.
                     wait_for(lambda: len(json.loads(state()['pages'][0][2])) == 3)
-                    screenshot(native, 'stage6-native-stamp-choice.png')
+                    screenshot(native, 'stage7-native-stamp-choice.png')
                     assert json.loads(state()['pages'][0][2])[2]['stamp'] == 'moon', json.loads(state()['pages'][0][2])[2]
                     # El sellito comienza con Mover enfocado y no contiene un campo de texto.
                     for _ in range(24):
@@ -236,10 +311,10 @@ with tempfile.TemporaryDirectory(prefix="suki-stage6-", dir=OUT) as temporary:
                     wait_for(lambda: json.loads(state()['pages'][0][2])[2]['width'] == 160)
                     modified_key(ord('y'), modifier=0xFFE3)
                     wait_for(lambda: json.loads(state()['pages'][0][2])[2]['width'] == 184)
-                    # Una última escala seguida de cierre confirma la cola de guardado.
+                    # Confirmar una última escala antes de agregar el calendario.
                     modified_key(0xFF54)
                     wait_for(lambda: json.loads(state()['pages'][0][2])[2]['width'] == 208)
-                    click(native, 100, 334)  # Calendario; el selector de mes recibe el foco.
+                    click_tool(native, 334)  # Calendario; el selector de mes recibe el foco.
                     time.sleep(0.2)
                     key(0xFF50)  # Home: Enero.
                     key(0xFF54)  # Febrero.
@@ -269,12 +344,109 @@ with tempfile.TemporaryDirectory(prefix="suki-stage6-", dir=OUT) as temporary:
                     wait_for(lambda: json.loads(state()['pages'][0][2])[3]['year'] == 2100)
                     modified_key(0xFF53)
                     wait_for(lambda: json.loads(state()['pages'][0][2])[3]['width'] == 384)
-                    # Cerrar inmediatamente después de otra escala prueba el guardado pendiente.
+                    # Confirmar la geometría antes de probar las herramientas creativas.
                     modified_key(0xFF54)
+                    wait_for(lambda: json.loads(state()['pages'][0][2])[3]['height'] == 364)
+
+                    # Selección con teclado y formato aplicado desde la barra lateral real.
+                    print('Elementos anteriores, geometría e historial: aprobados', flush=True)
+                    scroll_top(native, 900)  # Tab al tamaño del calendario desplazó la hoja.
+                    click(native, 400, 265)
+                    modified_key(0xFF50, modifier=0xFFE3)  # Ctrl+Home.
+                    for _ in range(9):
+                        modified_key(0xFF53)
+                    click_tool(native, 597)  # Subrayado.
+                    wait_for(lambda: len(json.loads(state()['pages'][0][2])[0].get('marks', [])) == 1)
+                    click_tool(native, 645)  # Remarcado sobre la misma selección.
+                    wait_for(lambda: len(json.loads(state()['pages'][0][2])[0].get('marks', [])) == 2)
+                    click(native, 100, 737)  # Pasar directamente al selector conserva la frase.
+                    key(0xFF54)  # Amarillo -> rosa.
+                    key(0xFF0D)
+                    wait_for(lambda: json.loads(state()['pages'][0][2])[0]['marks'][1].get('color') == 'pink')
+                    click(native, 1000, 480)  # Salir del texto haciendo clic en la hoja libre.
+                    click(native, 100, 737)
+                    key(0xFF54)  # Rosa -> verde para futuras marcas.
+                    key(0xFF0D)
+                    time.sleep(0.5)
+                    assert json.loads(state()['pages'][0][2])[0]['marks'][1]['color'] == 'pink'
+                    key(0xFF52)  # Volver a rosa, sin recuperar la selección anterior.
+                    click(native, 400, 300)  # El aviso de formato desplaza el campo hacia abajo.
+                    for _ in range(14):
+                        key(0xFF09)  # Recorrer los elementos hasta el primer día del calendario.
+                    key(0xFF0D)  # Remarcar el día con teclado.
+                    wait_for(lambda: json.loads(state()['pages'][0][2])[3].get('dayHighlights') == [
+                        {'year':2100,'month':2,'day':1,'color':'pink'}])
+                    click(native, 1000, 480)
+                    scroll_top(native, 100)
+                    click(native, 100, 737)
+                    key(0xFF54)
+                    key(0xFF0D)
+                    time.sleep(0.5)
+                    assert json.loads(state()['pages'][0][2])[3]['dayHighlights'] == [
+                        {'year':2100,'month':2,'day':1,'color':'pink'}]
+                    click_tool(native, 500)  # Washi tape.
+                    key(0xFF0D)
+                    wait_for(lambda: len(json.loads(state()['pages'][0][2])) == 5)
+                    click_tool(native, 549)  # Dibujo colocado con teclado.
+                    key(0xFF0D)
+                    wait_for(lambda: len(json.loads(state()['pages'][0][2])) == 6)
+
+                    click(native, geometry(native)[2] - 210, geometry(native)[3] - 36)
+                    accept_name('Mi semana')
+                    wait_for(lambda: state()['pages'][0][1] == 'Mi semana')
+                    click(native, geometry(native)[2] - 140, geometry(native)[3] - 36)
+                    key(0xFF1B)  # Cancelar eliminación.
+                    assert len(state()['pages']) == 3
+                    click(native, geometry(native)[2] - 140, geometry(native)[3] - 36)
+                    key(0xFF09)  # Cancelar -> Eliminar página.
+                    key(0xFF0D)
+                    wait_for(lambda: len(state()['pages']) == 2)
+                    modified_key(ord('z'), modifier=0xFFE3)
+                    wait_for(lambda: len(state()['pages']) == 3)
+                    assert len(json.loads(state()['pages'][0][2])) == 6
+                    print('Formato, decoraciones y administración de páginas: aprobados', flush=True)
+
+                    # Diálogos GTK reales: cancelar, guardar, crear otro journal y abrir.
+                    modified_key(ord('s'), modifier=0xFFE3)
+                    native_dialog('Guardar bullet journal')
+                    key(0xFF1B)
+                    time.sleep(0.3)
+                    assert file_path() is None
+                    first_file = Path(temporary) / 'ideas-native.suki'
+                    modified_key(ord('s'), modifier=0xFFE3)
+                    enter_file_path('Guardar bullet journal', first_file)
+                    wait_for(lambda: file_path() == str(first_file))
+                    first_bytes = first_file.read_bytes()
+                    exported = json.loads(first_bytes)['journal']
+                    assert len(exported['pages']) == 3
+                    assert len(exported['pages'][0]['elements']) == 6
+                    assert len(exported['pages'][0]['elements'][0]['marks']) == 2
+                    assert exported['pages'][0]['elements'][0]['marks'][1]['color'] == 'pink'
+                    assert exported['pages'][0]['elements'][3]['dayHighlights'] == [{'year':2100,'month':2,'day':1,'color':'pink'}]
+                    modified_key(ord('n'), modifier=0xFFE3)
+                    accept_name('Viajes')
+                    wait_for(lambda: state()['journal'][0] == 'Viajes')
+                    assert len(state()['pages']) == 1 and json.loads(state()['pages'][0][2]) == []
+                    second_file = Path(temporary) / 'viajes-native.suki'
+                    modified_key(ord('s'), modifier=0xFFE3)
+                    enter_file_path('Guardar bullet journal', second_file)
+                    wait_for(lambda: file_path() == str(second_file))
+                    assert json.loads(second_file.read_bytes())['journal']['title'] == 'Viajes'
+                    assert first_file.read_bytes() == first_bytes
+                    modified_key(ord('o'), modifier=0xFFE3)
+                    enter_file_path('Abrir bullet journal', first_file)
+                    wait_for(lambda: file_path() == str(first_file))
+                    assert state()['pages'][0][1] == 'Mi semana'
+                    assert json.loads(state()['pages'][0][2]) == exported['pages'][0]['elements']
+                    print('Diálogos de archivo y journals independientes: aprobados', flush=True)
+                    screenshot(native, 'stage7-native-features.png')
+                    # Cierre con un cambio nuevo todavía pendiente de autoguardado.
+                    click(native, geometry(native)[2] - 210, geometry(native)[3] - 36)
+                    accept_name('Semana recuperada')
                     expected = None
                 else:
                     assert state() == expected, "La reapertura no conservó el texto ni su geometría"
-                screenshot(native, f"stage6-native-{run}.png")
+                screenshot(native, f"stage7-native-{run}.png")
                 # Alt+F4 pide el cierre normal y ejercita el guardado previo a destroy.
                 alt = x11.XKeysymToKeycode(display, 0xFFE9)
                 xtest.XTestFakeKeyEvent(display, alt, 1, 0)
@@ -297,11 +469,22 @@ with tempfile.TemporaryDirectory(prefix="suki-stage6-", dir=OUT) as temporary:
                     calendar = json.loads(expected['pages'][0][2])[3]
                     assert (calendar['year'], calendar['month']) == (2100, 2), calendar
                     assert (calendar['x'],calendar['y'],calendar['width'],calendar['height']) == (48,408,384,364), calendar
+                    assert expected['pages'][0][1] == 'Semana recuperada'
+                    assert element['marks'] == [{'kind':'underline','start':0,'end':9}, {'kind':'highlight','start':0,'end':9,'color':'pink'}], element
+                    assert calendar['dayHighlights'] == [{'year':2100,'month':2,'day':1,'color':'pink'}], calendar
+                    assert json.loads(expected['pages'][0][2])[4]['type'] == 'washi'
+                    assert json.loads(expected['pages'][0][2])[5]['type'] == 'drawing'
+                    assert file_path() == str(first_file)
                 else:
                     assert state() == expected
                 reports.append({"nativeRun": run, "checks": "passed", "pages": len(expected["pages"]),
                                 "activePage": expected["journal"][1], "revision": expected["journal"][2],
                                 "elements": json.loads(expected["pages"][0][2])})
+            except Exception:
+                if process.poll() is None and window_id:
+                    screenshot(native, 'stage7-native-failure.png')
+                    screenshot(Gdk.get_default_root_window(), 'stage7-native-failure-screen.png')
+                raise
             finally:
                 if process.poll() is None:
                     process.terminate()
@@ -310,5 +493,5 @@ with tempfile.TemporaryDirectory(prefix="suki-stage6-", dir=OUT) as temporary:
                     except subprocess.TimeoutExpired:
                         process.kill()
                         process.wait()
-    (OUT / "stage6-native-results.json").write_text(json.dumps(reports, indent=2))
+    (OUT / "stage7-native-results.json").write_text(json.dumps(reports, indent=2))
     print(json.dumps(reports, ensure_ascii=False))

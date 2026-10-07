@@ -301,3 +301,89 @@
     6px 6px 0 0 #e7ded3,
     0 12px 30px #5c45350d;
 }
+
+.formatted-text {
+  position: absolute;
+  top: 28px;
+  left: 0;
+  width: 100%;
+  height: calc(100% - 28px);
+  overflow: hidden;
+  pointer-events: none;
+}
+.formatted-text-content {
+  padding: 4px 9px 14px;
+  color: var(--ink);
+  font: 18px/1.5 "Nunito", sans-serif;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  transform-origin: top left;
+}
+.text-input.has-format { position: relative; color: transparent; caret-color: var(--ink); }
+.text-input.has-format::selection { color: var(--ink); background: #dfa6a655; }
+.is-underlined { text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 3px; }
+.is-highlighted { background: var(--highlight-color, #f9e6a3); border-radius: 2px; }
+[data-highlight-color="yellow"] { --highlight-color: #f9e6a3; }
+[data-highlight-color="pink"] { --highlight-color: #f6cdd7; }
+[data-highlight-color="sage"] { --highlight-color: #d6e5c7; }
+[data-highlight-color="lilac"] { --highlight-color: #e2d5f2; }
+.calendar-table td:has(.calendar-day) { padding: 0; }
+.calendar-day { display: block; width: 100%; min-height: 24px; height: 100%; padding: 2px; border: 0; border-radius: 4px; background: transparent; color: var(--ink); font: inherit; cursor: pointer; }
+.calendar-day[aria-pressed="true"] { background: var(--highlight-color); font-weight: 800; }
+.is-highlighting .calendar-day:enabled:hover { box-shadow: inset 0 0 0 2px var(--salmon); }
+.calendar-day:focus-visible { outline-offset: -3px; }
+.postit-element .formatted-text { height: calc(100% - 60px); }
+.postit-element .formatted-text-content { padding: 6px 12px; }
+
+.journal-page.is-placing-washi, .journal-page.is-drawing { cursor: crosshair; }
+.journal-page.is-drawing .text-input { cursor: crosshair; }
+.drawing-artwork {
+  position: absolute;
+  top: 28px;
+  left: 14px;
+  width: calc(100% - 28px);
+  height: calc(100% - 42px);
+  pointer-events: none;
+  overflow: visible;
+}
+.drawing-preview { inset: 0; width: 100%; height: 100%; z-index: 3; }
+.washi-artwork {
+  --tape-color: #f6cdd7;
+  position: absolute;
+  inset: 18px 3px 12px;
+  background-color: var(--tape-color);
+  background-image: repeating-linear-gradient(115deg, transparent 0 10px, #ffffff77 10px 17px);
+  clip-path: polygon(0 0, 99% 5%, 97% 15%, 100% 25%, 97% 40%, 100% 55%, 97% 75%, 100% 90%, 99% 100%, 0 96%, 2% 82%, 0 65%, 2% 50%, 0 30%, 2% 15%);
+  pointer-events: none;
+}
+.washi-element[data-color="yellow"] .washi-artwork { --tape-color: #f9e6a3; }
+.washi-element[data-color="sage"] .washi-artwork { --tape-color: #d6e5c7; }
+.washi-element[data-color="lilac"] .washi-artwork { --tape-color: #e2d5f2; }
+.washi-element[data-pattern="dots"] .washi-artwork {
+  background-image: radial-gradient(circle, #ffffffaa 2px, transparent 3px);
+  background-size: 14px 14px;
+}
+.washi-element[data-pattern="grid"] .washi-artwork {
+  background-image: linear-gradient(#ffffff88 1px, transparent 1px), linear-gradient(90deg, #ffffff88 1px, transparent 1px);
+  background-size: 14px 14px;
+}
+.decoration-style {
+  visibility: hidden;
+  position: absolute;
+  bottom: 3px;
+  left: 5px;
+  right: 22px;
+  display: flex;
+  gap: 3px;
+}
+.decoration-style select {
+  width: 50%;
+  min-width: 0;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: #fffdfaeb;
+  color: var(--ink);
+  font: 11px "Nunito", sans-serif;
+}
+.text-element.is-selected .decoration-style, .text-element:focus-within .decoration-style { visibility: visible; }
