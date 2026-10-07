@@ -90,7 +90,7 @@
         </div>
 
         <div class="tool-group" role="group" aria-label="Herramientas del journal">
-          <button class="tool-button" type="button" disabled title="Post-it — en preparación">
+          <button class="tool-button" id="tool-postit" type="button" disabled aria-pressed="false" aria-describedby="postit-tool-help" title="Agregar un post-it">
             <span class="tool-icon tool-icon-yellow"><svg class="icon" aria-hidden="true"><use href="#icon-postit" /></svg></span>
             <span>Post-it</span>
           </button>
@@ -109,6 +109,7 @@
         </div>
 
         <p class="tool-help" id="text-tool-help" hidden>Hacé clic en la hoja para agregar texto. Con teclado, pulsá Enter. Escape cancela.</p>
+        <p class="tool-help" id="postit-tool-help" hidden>Hacé clic en la hoja para pegar un post-it. Con teclado, pulsá Enter. Podés cambiar su color en la nota. Escape cancela.</p>
 
         <div class="tool-group future-tools" role="group" aria-labelledby="future-tools-heading">
           <p class="group-label" id="future-tools-heading">Próximamente</p>

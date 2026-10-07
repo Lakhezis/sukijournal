@@ -191,6 +191,8 @@ def drag(selector, dx, dy, cancel=False):
     pause()
     if cancel:
         js("document.querySelector('#journal-page').dispatchEvent(new KeyboardEvent('keydown', {key:'Escape',bubbles:true})); 'ok'")
+    # Fijar el destino junto a pointerup evita movimientos ajenos entre ambos eventos.
+    xtest.XTestFakeMotionEvent(xdisplay, -1, x + dx, y + dy, 0)
     xtest.XTestFakeButtonEvent(xdisplay, 1, 0, 0)
     x11.XFlush(xdisplay)
     pause()
@@ -208,8 +210,16 @@ def text_geometry():
     return json.loads(js("JSON.stringify(JSON.parse(localStorage.getItem('testJournal')).pages.find(p=>p.id===document.querySelector('[aria-current=page]').dataset.pageId).elements.find(e=>e.type==='text'))"))
 
 
-def type_text(value):
-    js("(() => { const field = document.querySelector('.text-input'); field.focus(); field.value = " + json.dumps(value) + "; field.setSelectionRange(3,3); field.dispatchEvent(new InputEvent('input',{bubbles:true,inputType:'insertText'})); })(); 'ok'")
+def type_text(value, selector=".text-input"):
+    js("(() => { const field = document.querySelector(" + json.dumps(selector) + "); field.focus(); field.value = " + json.dumps(value) + "; field.setSelectionRange(3,3); field.dispatchEvent(new InputEvent('input',{bubbles:true,inputType:'insertText'})); })(); 'ok'")
+
+
+def postit_geometry():
+    return json.loads(js("JSON.stringify(JSON.parse(localStorage.getItem('testJournal')).pages.find(p=>p.id===document.querySelector('[aria-current=page]').dataset.pageId).elements.find(e=>e.type==='postit'))"))
+
+
+def set_color(color):
+    js("(() => {const select=document.querySelector('.postit-color'); select.focus(); select.value=" + json.dumps(color) + "; select.dispatchEvent(new Event('change',{bubbles:true}));})(); 'ok'")
 
 reports = []
 try:
@@ -220,7 +230,7 @@ try:
     wait_for(lambda: loaded)
     wait_for(lambda: js("document.querySelector('#app-status').textContent") == 'Guardado')
     js("localStorage.clear(); 'ok'")
-    assert js("String(document.querySelectorAll('.tool-button:disabled').length)") == '7'
+    assert js("String(document.querySelectorAll('.tool-button:disabled').length)") == '6'
     assert js("String(document.querySelector('#add-page').disabled)") == 'false'
     assert js("String(document.querySelector('#journal-page').hidden)") == 'false'
     assert js("String(document.querySelectorAll('#page-tabs button').length)") == '1'
@@ -330,6 +340,103 @@ try:
     assert text_value() == literal
     reports.append({'check':'text error retains pending content and undo history', 'result':'passed'})
 
+    # Herramientas excluyentes y cancelación sin crear una nota accidental.
+    js("document.querySelector('#tool-text').click(); document.querySelector('#tool-postit').click(); 'ok'")
+    assert js("document.querySelector('#tool-text').getAttribute('aria-pressed')") == 'false'
+    assert js("document.querySelector('#tool-postit').getAttribute('aria-pressed')") == 'true'
+    js("document.querySelector('#journal-page').dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true})); 'ok'")
+    assert js("document.querySelector('#tool-postit').getAttribute('aria-pressed')") == 'false'
+    assert js("String(document.querySelectorAll('.postit-element').length)") == '0'
+
+    # Nota junto al texto: contenido literal, cuatro colores, foco e historial.
+    js("document.querySelector('#tool-postit').click(); (()=>{const p=document.querySelector('#journal-page'),r=p.getBoundingClientRect(); p.dispatchEvent(new MouseEvent('click',{bubbles:true,clientX:r.left+451,clientY:r.top+81}));})(); 'ok'")
+    assert js("String(document.activeElement.closest('.postit-element') !== null)") == 'true'
+    note_text = 'Recordar 🌱\n<script>literal</script>'
+    type_text(note_text, '.postit-element .text-input')
+    saved()
+    assert postit_geometry()['text'] == note_text
+    assert (postit_geometry()['x'],postit_geometry()['y']) == (450,80)
+    assert text_value() == literal
+    assert js("String(document.querySelector('#unknown-elements').hidden)") == 'true'
+    backgrounds = set()
+    for color in ['yellow','pink','sage','lilac']:
+        set_color(color)
+        saved()
+        assert postit_geometry()['color'] == color
+        assert js("String(document.activeElement.classList.contains('postit-color'))") == 'true'
+        backgrounds.add(js("getComputedStyle(document.querySelector('.postit-element')).backgroundColor"))
+    assert len(backgrounds) == 4
+    js("document.querySelector('#undo').click(); 'ok'")
+    saved()
+    assert postit_geometry()['color'] == 'sage'
+    js("document.querySelector('#redo').click(); 'ok'")
+    saved()
+    assert postit_geometry()['color'] == 'lilac'
+    # Confirmar un borrador antes del color no debe reemplazar el color elegido.
+    js("document.querySelector('.postit-element .text-input').value += '!'; 'ok'")
+    set_color('pink')
+    saved()
+    assert postit_geometry()['text'] == note_text + '!'
+    assert postit_geometry()['color'] == 'pink'
+    js("document.querySelector('.postit-color').dispatchEvent(new KeyboardEvent('keydown',{key:'Delete',bubbles:true})); 'ok'")
+    assert js("String(document.querySelectorAll('.postit-element').length)") == '1'
+    reports.append({'check':'post-it placement, literal text, four colors, focus and color history', 'result':'passed'})
+
+    drag('.postit-element .text-move', -40, 40)
+    saved()
+    assert (postit_geometry()['x'],postit_geometry()['y']) == (410,120)
+    drag('.postit-element .text-resize', 24, 24)
+    saved()
+    assert (postit_geometry()['width'],postit_geometry()['height']) == (264,264)
+    original_note = postit_geometry()
+    drag('.postit-element .text-move', 40, 20, cancel=True)
+    assert postit_geometry() == original_note
+    js("document.querySelector('.postit-element .text-move').focus(); document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowRight',shiftKey:true,bubbles:true})); 'ok'")
+    saved()
+    assert postit_geometry()['x'] == 434
+    js("document.querySelector('.postit-element .text-resize').focus(); document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowDown',shiftKey:true,bubbles:true})); 'ok'")
+    saved()
+    assert postit_geometry()['height'] == 288
+    original_note = postit_geometry()
+    js("document.querySelector('.postit-element .text-move').focus(); document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'Delete',bubbles:true})); 'ok'")
+    saved()
+    assert js("String(document.querySelectorAll('.postit-element').length)") == '0'
+    js("document.querySelector('#undo').click(); 'ok'")
+    saved()
+    assert postit_geometry() == original_note
+    assert text_value() == literal
+    js("document.querySelectorAll('#page-tabs button')[1].click(); 'ok'")
+    saved()
+    assert js("String(document.querySelectorAll('.postit-element').length)") == '0'
+    js("document.querySelector('#page-tabs button').click(); 'ok'")
+    saved()
+    assert postit_geometry() == original_note
+    # Los tipos futuros siguen conservándose y se avisa al mostrarlos.
+    js("(()=>{const journal=JSON.parse(localStorage.getItem('testJournal'));journal.pages[0].elements.push({type:'future',id:'future-1',data:{keep:true}});localStorage.setItem('testJournal',JSON.stringify(journal));})(); 'ok'")
+    loaded.clear()
+    view.reload()
+    wait_for(lambda: loaded)
+    saved()
+    assert postit_geometry() == original_note
+    assert text_value() == literal
+    assert js("String(document.querySelector('#unknown-elements').hidden)") == 'false'
+    reports.append({'check':'post-it real drag, resize, keyboard, cancel, deletion, navigation and reload', 'result':'passed'})
+
+    js("window.failSave = true; 'ok'")
+    set_color('sage')
+    wait_for(lambda: js("document.querySelector('#app-status').textContent") == 'Sin guardar')
+    assert js("document.querySelector('.postit-element').dataset.color") == 'sage'
+    assert js("String(document.querySelector('.postit-color').disabled)") == 'true'
+    assert js("String(document.querySelector('#tool-postit').disabled)") == 'true'
+    js("window.failSave=false; document.querySelector('#retry-storage').click(); 'ok'")
+    saved()
+    assert postit_geometry()['color'] == 'sage'
+    assert js("String(JSON.parse(localStorage.getItem('testJournal')).pages[0].elements.find(e=>e.type==='future').data.keep)") == 'true'
+    js("document.querySelector('#undo').click(); 'ok'")
+    saved()
+    assert postit_geometry() == original_note
+    reports.append({'check':'failed post-it save retains color, retries and preserves unknown types', 'result':'passed'})
+
     js("window.failSave = true; document.querySelector('#add-page').click(); 'ok'")
     wait_for(lambda: js("document.querySelector('#app-status').textContent") == 'Sin guardar')
     assert js("String(document.querySelector('#storage-notice').hidden)") == 'false'
@@ -374,6 +481,10 @@ try:
     js("document.querySelector('#tool-text').click(); document.querySelector('#journal-page').dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true})); 'ok'")
     type_text('Mis ideas de hoy\n• Organizar la semana\n• Hacer espacio para crear')
     saved()
+    js("document.querySelector('#tool-postit').click(); (()=>{const p=document.querySelector('#journal-page'),r=p.getBoundingClientRect(); p.dispatchEvent(new MouseEvent('click',{bubbles:true,clientX:r.left+337,clientY:r.top+25}));})(); 'ok'")
+    type_text('Recordatorios\nRegar las plantas\nSalir a caminar 🌱', '.postit-element .text-input')
+    set_color('sage')
+    saved()
     for width, height in [(1280,900), (900,640)]:
         view.set_size_request(width,height)
         geometry = Gdk.Geometry()
@@ -396,19 +507,21 @@ try:
         assert float(js("String(document.activeElement.getBoundingClientRect().y)")) >= 0
         js("document.activeElement.click(); 'ok'")
         assert js("document.activeElement.id") == 'workspace'
-        snapshot(f'stage3-webkit-{width}x{height}.png')
+        snapshot(f'stage4-webkit-{width}x{height}.png')
         reports.append({'viewport':[width,height], 'result':'passed'})
 
     type_text('Texto confirmado antes de cerrar')
+    type_text('Nota confirmada antes de cerrar', '.postit-element .text-input')
     js("document.querySelector('#add-page').click(); window.testCloseHandler({preventDefault(){window.closePrevented=true}}); 'ok'")
     assert js("String(Boolean(window.testDestroyed))") == 'false'
     wait_for(lambda: js("String(Boolean(window.testDestroyed))") == 'true')
     assert js("JSON.parse(localStorage.getItem('testJournal')).pages.length.toString()") == '19'
     assert js("JSON.parse(localStorage.getItem('testJournal')).pages[17].elements[0].text") == 'Texto confirmado antes de cerrar'
-    reports.append({'check':'close waits for pending text and page save', 'result':'passed'})
+    assert js("JSON.parse(localStorage.getItem('testJournal')).pages[17].elements[1].text") == 'Nota confirmada antes de cerrar'
+    reports.append({'check':'close waits for pending text, post-it and page save', 'result':'passed'})
     assert not errors, errors
 finally:
     window.destroy()
     server.shutdown()
-(OUT / 'stage3-frontend-results.json').write_text(json.dumps({'checks':reports,'errors':errors},indent=2))
+(OUT / 'stage4-frontend-results.json').write_text(json.dumps({'checks':reports,'errors':errors},indent=2))
 print(json.dumps({'checks':reports,'errors':errors},ensure_ascii=False))

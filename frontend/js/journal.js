@@ -1,5 +1,5 @@
 // Estado del editor. No conoce comandos Tauri, SQL ni ubicaciones de archivos.
-import { validateTextElement } from "./elements.js";
+import { isEditableElement, validateElement } from "./elements.js";
 
 export function validateJournal(journal) {
   if (!journal || journal.schemaVersion !== 1 ||
@@ -19,9 +19,9 @@ export function validateJournal(journal) {
     ids.add(page.id);
     const elementIds = new Set();
     for (const element of page.elements) {
-      if (element.type !== "text") continue;
-      validateTextElement(element);
-      if (elementIds.has(element.id)) throw new Error("Hay bloques de texto con identificadores repetidos.");
+      if (!isEditableElement(element)) continue;
+      validateElement(element);
+      if (elementIds.has(element.id)) throw new Error("Hay textos o post-it con identificadores repetidos.");
       elementIds.add(element.id);
     }
   }

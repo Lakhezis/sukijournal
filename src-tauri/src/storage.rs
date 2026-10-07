@@ -321,4 +321,71 @@ mod tests {
         assert!(storage.save(&duplicate).is_err());
         assert_eq!(storage.load().unwrap(), original);
     }
+
+    #[test]
+    fn persists_postit_colors_content_geometry_and_deletion_with_existing_text() {
+        let root = tempfile::tempdir().unwrap();
+        let mut storage = Storage::open(root.path()).unwrap();
+        let mut journal = storage.load().unwrap();
+        journal.pages[0].elements = vec![
+            json!({"type":"text", "id":"text-1", "text":"Texto previo", "x":24,
+                "y":24, "width":240, "height":160}),
+            json!({"type":"future", "data":{"keep":true}}),
+            json!({"type":"postit", "id":"note-1", "text":"Recordar 🌱\n<literal>",
+                "color":"yellow", "x":480.5, "y":600, "width":288, "height":264}),
+        ];
+        for color in ["yellow", "pink", "sage", "lilac"] {
+            journal.pages[0].elements[2]["color"] = json!(color);
+            journal.revision = storage.save(&journal).unwrap();
+        }
+        drop(storage);
+        let mut reopened = Storage::open(root.path()).unwrap();
+        assert_eq!(reopened.load().unwrap(), journal);
+        journal.pages[0].elements.pop();
+        journal.revision = reopened.save(&journal).unwrap();
+        assert_eq!(reopened.load().unwrap(), journal);
+        let version: u32 = reopened
+            .connection
+            .pragma_query_value(None, "user_version", |row| row.get(0))
+            .unwrap();
+        assert_eq!(version, 1);
+    }
+
+    #[test]
+    fn rejects_invalid_postits_and_shared_ids_without_overwriting_saved_data() {
+        let root = tempfile::tempdir().unwrap();
+        let mut storage = Storage::open(root.path()).unwrap();
+        let original = storage.load().unwrap();
+        let valid = json!({"type":"postit", "id":"note-1", "text":"Recordar", "color":"pink",
+            "x":24, "y":24, "width":240, "height":240});
+        for (field, value) in [
+            ("color", json!("unknown")),
+            ("color", json!(null)),
+            ("color", json!(42)),
+            ("x", json!(-1)),
+            ("y", json!(1078)),
+            ("width", json!(159)),
+            ("height", json!(143)),
+            ("text", json!("🌱".repeat(5001))),
+        ] {
+            let mut invalid = original.clone();
+            let mut note = valid.clone();
+            note[field] = value;
+            invalid.pages[0].elements.push(note);
+            assert!(storage.save(&invalid).is_err());
+        }
+        for field in ["color", "text", "id", "width"] {
+            let mut invalid = original.clone();
+            let mut note = valid.clone();
+            note.as_object_mut().unwrap().remove(field);
+            invalid.pages[0].elements.push(note);
+            assert!(storage.save(&invalid).is_err());
+        }
+        let mut duplicate = original.clone();
+        let mut text = valid.clone();
+        text["type"] = json!("text");
+        duplicate.pages[0].elements = vec![valid, text];
+        assert!(storage.save(&duplicate).is_err());
+        assert_eq!(storage.load().unwrap(), original);
+    }
 }

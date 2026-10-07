@@ -1,5 +1,5 @@
-import { createText, insertText, editText, moveText, resizeText, deleteText,
-  PAPER, MIN_TEXT_SIZE, TEXT_LIMIT } from "./elements.js";
+import { createText, createPostit, insertElement, editElementText, moveElement, resizeElement, deleteElement,
+  colorPostit, isEditableElement, minimumSize, POSTIT_COLORS, PAPER, TEXT_LIMIT } from "./elements.js";
 
 // Vista del editor: los gestos usan coordenadas de la hoja y producen cambios de estado.
 export function createEditor({ paper, workspace, getStore, onPlacement }) {
@@ -7,7 +7,7 @@ export function createEditor({ paper, workspace, getStore, onPlacement }) {
   let model = null;
   let ready = false;
   let selectedId = null;
-  let placing = false;
+  let placing = null;
   let gesture = null;
   const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 
@@ -17,8 +17,9 @@ export function createEditor({ paper, workspace, getStore, onPlacement }) {
   }
 
   function setPlacement(value) {
-    placing = value && ready;
-    paper.classList.toggle("is-placing-text", placing);
+    placing = ready && (value === "text" || value === "postit") ? value : null;
+    paper.classList.toggle("is-placing-text", placing === "text");
+    paper.classList.toggle("is-placing-postit", placing === "postit");
     onPlacement(placing);
     if (placing) select(null);
   }
@@ -30,8 +31,8 @@ export function createEditor({ paper, workspace, getStore, onPlacement }) {
 
   function commitText(id) {
     const entry = entries.get(id);
-    if (!ready || !entry || !model?.elements.some(item => item.type === "text" && item.id === id)) return;
-    getStore().update(journal => editText(journal, model.id, id, entry.input.value),
+    if (!ready || !entry || !model?.elements.some(item => isEditableElement(item) && item.id === id)) return;
+    getStore().update(journal => editElementText(journal, model.id, id, entry.input.value),
       { group: `text:${model.id}:${id}`, deferSave: true });
   }
 
@@ -45,17 +46,17 @@ export function createEditor({ paper, workspace, getStore, onPlacement }) {
     }
     if (commit && ready && model?.id === current.pageId) {
       getStore().update(journal => current.kind === "move"
-        ? moveText(journal, current.pageId, current.id, current.preview.x, current.preview.y)
-        : resizeText(journal, current.pageId, current.id, current.preview.width, current.preview.height));
+        ? moveElement(journal, current.pageId, current.id, current.preview.x, current.preview.y)
+        : resizeElement(journal, current.pageId, current.id, current.preview.width, current.preview.height));
     } else {
-      const original = model?.elements.find(item => item.type === "text" && item.id === current.id);
+      const original = model?.elements.find(item => isEditableElement(item) && item.id === current.id);
       if (original) position(current.entry.node, original);
     }
   }
 
   function beginGesture(event, id, kind, entry) {
     if (!ready || event.button !== 0 || !model) return;
-    const element = model.elements.find(item => item.type === "text" && item.id === id);
+    const element = model.elements.find(item => isEditableElement(item) && item.id === id);
     if (!element) return;
     event.preventDefault();
     endGesture(false);
@@ -76,11 +77,12 @@ export function createEditor({ paper, workspace, getStore, onPlacement }) {
     const dx = event.clientX - gesture.startX + workspace.scrollLeft - gesture.scrollX;
     const dy = event.clientY - gesture.startY + workspace.scrollTop - gesture.scrollY;
     const original = gesture.original;
+    const minimum = minimumSize(original);
     gesture.preview = gesture.kind === "move"
       ? { ...original, x: clamp(original.x + dx, 0, PAPER.width - original.width),
         y: clamp(original.y + dy, 0, PAPER.height - original.height) }
-      : { ...original, width: clamp(original.width + dx, MIN_TEXT_SIZE.width, PAPER.width - original.x),
-        height: clamp(original.height + dy, MIN_TEXT_SIZE.height, PAPER.height - original.y) };
+      : { ...original, width: clamp(original.width + dx, minimum.width, PAPER.width - original.x),
+        height: clamp(original.height + dy, minimum.height, PAPER.height - original.y) };
     position(gesture.entry.node, gesture.preview);
   }
 
@@ -89,11 +91,11 @@ export function createEditor({ paper, workspace, getStore, onPlacement }) {
     const directions = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
     if (!directions[event.key] || event.ctrlKey || event.metaKey || event.altKey) return;
     event.preventDefault();
-    const element = model.elements.find(item => item.type === "text" && item.id === id);
+    const element = model.elements.find(item => isEditableElement(item) && item.id === id);
     const [dx, dy] = directions[event.key].map(value => value * (event.shiftKey ? 24 : 1));
     getStore().update(journal => kind === "move"
-      ? moveText(journal, model.id, id, element.x + dx, element.y + dy)
-      : resizeText(journal, model.id, id, element.width + dx, element.height + dy),
+      ? moveElement(journal, model.id, id, element.x + dx, element.y + dy)
+      : resizeElement(journal, model.id, id, element.width + dx, element.height + dy),
     { group: `${kind}:${model.id}:${id}` });
   }
 
@@ -101,46 +103,71 @@ export function createEditor({ paper, workspace, getStore, onPlacement }) {
     if (!ready || !model) return;
     endGesture(false);
     const focusInNote = entries.get(id)?.node.contains(document.activeElement);
-    getStore().update(journal => deleteText(journal, model.id, id));
+    getStore().update(journal => deleteElement(journal, model.id, id));
     if (focusInNote) paper.focus({ preventScroll: true });
   }
 
   function newEntry(element) {
+    const postit = element.type === "postit";
+    const label = postit ? "post-it" : "texto";
     const node = document.createElement("div");
-    node.className = "text-element";
+    node.className = postit ? "text-element postit-element" : "text-element";
     node.dataset.elementId = element.id;
     node.setAttribute("role", "group");
-    node.setAttribute("aria-label", "Bloque de texto");
+    node.setAttribute("aria-label", postit ? "Post-it" : "Bloque de texto");
     const controls = document.createElement("div");
     controls.className = "text-controls";
     const move = document.createElement("button");
     move.type = "button";
     move.className = "text-move";
     move.textContent = "⠿ Mover";
-    move.setAttribute("aria-label", "Mover texto; arrastrá o usá las flechas");
+    move.setAttribute("aria-label", `Mover ${label}; arrastrá o usá las flechas`);
     move.title = "Arrastrá para mover. Flechas: 1 px; Shift + flechas: 24 px.";
     const removeButton = document.createElement("button");
     removeButton.type = "button";
     removeButton.className = "text-remove";
     removeButton.textContent = "×";
-    removeButton.setAttribute("aria-label", "Eliminar texto");
-    removeButton.title = "Eliminar texto";
+    removeButton.setAttribute("aria-label", `Eliminar ${label}`);
+    removeButton.title = `Eliminar ${label}`;
     const input = document.createElement("textarea");
     input.className = "text-input";
-    input.setAttribute("aria-label", "Contenido del texto");
-    input.placeholder = "Escribí tus ideas…";
+    input.setAttribute("aria-label", `Contenido del ${label}`);
+    input.placeholder = postit ? "Algo para recordar…" : "Escribí tus ideas…";
     input.maxLength = TEXT_LIMIT;
     input.spellcheck = true;
     const resize = document.createElement("button");
     resize.type = "button";
     resize.className = "text-resize";
     resize.textContent = "◢";
-    resize.setAttribute("aria-label", "Cambiar tamaño del texto; arrastrá o usá las flechas");
+    resize.setAttribute("aria-label", `Cambiar tamaño del ${label}; arrastrá o usá las flechas`);
     resize.title = "Arrastrá para cambiar el tamaño. Flechas: 1 px; Shift + flechas: 24 px.";
     controls.append(move, removeButton);
     node.append(controls, input, resize);
-    const entry = { node, input, move, removeButton, resize, composing: false };
+    let color = null;
+    if (postit) {
+      color = document.createElement("select");
+      color.className = "postit-color";
+      color.setAttribute("aria-label", "Color del post-it");
+      for (const choice of POSTIT_COLORS) {
+        const option = document.createElement("option");
+        option.value = choice.value;
+        option.textContent = choice.label;
+        color.append(option);
+      }
+      color.addEventListener("change", () => {
+        if (!ready) return;
+        const selectedColor = color.value;
+        commitText(element.id);
+        getStore().update(journal => colorPostit(journal, model.id, element.id, selectedColor));
+      });
+      // El orden de Tab permite escribir, elegir color y después cambiar tamaño.
+      node.insertBefore(color, resize);
+    }
+    const entry = { node, input, move, removeButton, resize, color, type: element.type, composing: false };
     node.addEventListener("focusin", () => select(element.id));
+    node.addEventListener("focusout", event => {
+      if (selectedId === element.id && !node.contains(event.relatedTarget)) select(null);
+    });
     node.addEventListener("pointerdown", () => { select(element.id); setPlacement(false); });
     input.addEventListener("input", () => commitText(element.id));
     input.addEventListener("compositionstart", () => { entry.composing = true; });
@@ -176,8 +203,9 @@ export function createEditor({ paper, workspace, getStore, onPlacement }) {
     model = nextPage;
     const remaining = new Set(entries.keys());
     for (const element of model?.elements || []) {
-      if (element.type !== "text") continue;
+      if (!isEditableElement(element)) continue;
       let entry = entries.get(element.id);
+      if (entry && entry.type !== element.type) { entry.node.remove(); entry = null; }
       if (!entry) {
         entry = newEntry(element);
         entries.set(element.id, entry);
@@ -189,6 +217,11 @@ export function createEditor({ paper, workspace, getStore, onPlacement }) {
       if (!entry.composing && entry.input.value !== element.text) entry.input.value = element.text;
       entry.input.readOnly = !ready;
       for (const button of [entry.move, entry.removeButton, entry.resize]) button.disabled = !ready;
+      if (entry.color) {
+        entry.color.value = element.color;
+        entry.color.disabled = !ready;
+        entry.node.dataset.color = element.color;
+      }
     }
     for (const id of remaining) { entries.get(id).node.remove(); entries.delete(id); }
     if (selectedId && !entries.has(selectedId)) select(null);
@@ -196,8 +229,8 @@ export function createEditor({ paper, workspace, getStore, onPlacement }) {
 
   function addAt(x, y) {
     if (!ready || !model) return;
-    const element = createText(crypto.randomUUID(), x, y);
-    if (getStore().update(journal => insertText(journal, model.id, element))) {
+    const element = placing === "postit" ? createPostit(crypto.randomUUID(), x, y) : createText(crypto.randomUUID(), x, y);
+    if (getStore().update(journal => insertElement(journal, model.id, element))) {
       setPlacement(false);
       select(element.id);
       entries.get(element.id).input.focus({ preventScroll: true });
@@ -224,14 +257,14 @@ export function createEditor({ paper, workspace, getStore, onPlacement }) {
       const visible = workspace.getBoundingClientRect();
       addAt(Math.max(24, visible.left + 24 - rect.left - paper.clientLeft),
         Math.max(24, visible.top + 24 - rect.top - paper.clientTop));
-    } else if (event.key === "Delete" && selectedId && event.target.tagName !== "TEXTAREA") {
+    } else if (event.key === "Delete" && selectedId && event.target.tagName === "BUTTON") {
       event.preventDefault();
       remove(selectedId);
     }
   });
 
   return { render, setPlacement,
-    togglePlacement() { setPlacement(!placing); if (placing) paper.focus({ preventScroll: true }); },
+    togglePlacement(type = "text") { setPlacement(placing === type ? null : type); if (placing) paper.focus({ preventScroll: true }); },
     finish() { endGesture(true); for (const id of entries.keys()) commitText(id); getStore().endGroup(); },
   };
 }

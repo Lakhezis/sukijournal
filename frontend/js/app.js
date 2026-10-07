@@ -2,6 +2,7 @@ import { addPage, selectPage } from "./journal.js";
 import { nativeStorage } from "./storage.js";
 import { createStore } from "./store.js";
 import { createEditor } from "./editor.js";
+import { isEditableElement } from "./elements.js";
 
 const workspace = document.querySelector("#workspace");
 const page = document.querySelector("#journal-page");
@@ -14,6 +15,7 @@ const retryButton = document.querySelector("#retry-storage");
 const reloadButton = document.querySelector("#reload-journal");
 const reloadDialog = document.querySelector("#reload-dialog");
 const textTool = document.querySelector("#tool-text");
+const postitTool = document.querySelector("#tool-postit");
 const undoButton = document.querySelector("#undo");
 const redoButton = document.querySelector("#redo");
 let closing = false;
@@ -21,10 +23,13 @@ let activeId = null;
 let lastState = { journal: null, phase: "loading", error: "" };
 let store;
 const editor = createEditor({ paper: page, workspace, getStore: () => store,
-  onPlacement(active) {
-    textTool.classList.toggle("is-active", active);
-    textTool.setAttribute("aria-pressed", String(active));
-    document.querySelector("#text-tool-help").hidden = !active;
+  onPlacement(type) {
+    for (const [tool, name] of [[textTool, "text"], [postitTool, "postit"]]) {
+      tool.classList.toggle("is-active", type === name);
+      tool.setAttribute("aria-pressed", String(type === name));
+    }
+    document.querySelector("#text-tool-help").hidden = type !== "text";
+    document.querySelector("#postit-tool-help").hidden = type !== "postit";
   } });
 
 function revealActivePage() {
@@ -45,6 +50,7 @@ function render(state) {
   const ready = Boolean(journal) && (phase === "saved" || phase === "saving") && !closing;
   const active = journal?.pages.find(item => item.id === journal.activePageId);
   textTool.disabled = !ready;
+  postitTool.disabled = !ready;
   undoButton.disabled = !ready || !state.canUndo;
   redoButton.disabled = !ready || !state.canRedo;
   status.textContent = closing ? "Cerrando…" : {
@@ -65,9 +71,12 @@ function render(state) {
   document.querySelector("#current-page-title").textContent = active?.title ||
     (phase === "error" ? "Journal no disponible" : "Cargando journal…");
   const texts = active?.elements.filter(element => element.type === "text").length || 0;
+  const postits = active?.elements.filter(element => element.type === "postit").length || 0;
+  const counts = [texts ? `${texts} ${texts === 1 ? "texto" : "textos"}` : "",
+    postits ? `${postits} post-it` : ""].filter(Boolean);
   document.querySelector("#page-subtitle").textContent = active
-    ? (texts ? `${texts} ${texts === 1 ? "texto" : "textos"}` : "lienzo en blanco") : "";
-  document.querySelector("#unknown-elements").hidden = !active?.elements.some(element => element.type !== "text");
+    ? (counts.join(" · ") || "lienzo en blanco") : "";
+  document.querySelector("#unknown-elements").hidden = !active?.elements.some(element => !isEditableElement(element));
   editor.render(active, ready);
   workspace.setAttribute("aria-label", active ? `Área de trabajo; hoja de ${active.title}` : "Área de trabajo");
   page.setAttribute("aria-label", active ? `${active.title}, hoja con trama de puntos` : "Hoja con trama de puntos");
@@ -130,7 +139,9 @@ try {
     editor.finish();
     store.update(current => addPage(current, crypto.randomUUID()));
   });
-  textTool.addEventListener("click", () => editor.togglePlacement());
+  for (const [tool, type] of [[textTool, "text"], [postitTool, "postit"]]) {
+    tool.addEventListener("click", () => { editor.finish(); editor.togglePlacement(type); });
+  }
   function history(action) {
     if (closing || !lastState.journal || lastState.phase === "error" || lastState.phase === "loading") return;
     editor.finish();

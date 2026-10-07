@@ -64,14 +64,24 @@ impl Journal {
             }
             let mut element_ids = HashSet::new();
             for element in &page.elements {
-                if element.get("type").and_then(|value| value.as_str()) != Some("text") {
-                    continue;
-                }
+                let postit = match element.get("type").and_then(|value| value.as_str()) {
+                    Some("text") => false,
+                    Some("postit") => true,
+                    _ => continue,
+                };
                 let text: TextElement = serde_json::from_value(element.clone())
-                    .map_err(|_| "Hay un bloque de texto con datos inválidos.")?;
-                text.validate()?;
+                    .map_err(|_| "Hay un texto o post-it con datos inválidos.")?;
+                text.validate(postit)?;
+                if postit
+                    && !matches!(
+                        element.get("color").and_then(|value| value.as_str()),
+                        Some("yellow" | "pink" | "sage" | "lilac")
+                    )
+                {
+                    return Err("Hay un post-it con un color inválido.".into());
+                }
                 if !element_ids.insert(text.id) {
-                    return Err("Hay bloques de texto con identificadores repetidos.".into());
+                    return Err("Hay textos o post-it con identificadores repetidos.".into());
                 }
             }
         }
@@ -93,7 +103,12 @@ struct TextElement {
 }
 
 impl TextElement {
-    fn validate(&self) -> Result<(), String> {
+    fn validate(&self, postit: bool) -> Result<(), String> {
+        let (min_width, min_height) = if postit {
+            (160.0, 144.0)
+        } else {
+            (120.0, 88.0)
+        };
         if self.id.is_empty()
             || self.id.encode_utf16().count() > 100
             || self.text.encode_utf16().count() > 10_000
@@ -102,12 +117,12 @@ impl TextElement {
                 .all(|value| value.is_finite())
             || self.x < 0.0
             || self.y < 0.0
-            || self.width < 120.0
-            || self.height < 88.0
+            || self.width < min_width
+            || self.height < min_height
             || self.x + self.width > 852.0
             || self.y + self.height > 1078.0
         {
-            return Err("Hay un bloque de texto inválido o fuera de la hoja.".into());
+            return Err("Hay un texto o post-it inválido o fuera de la hoja.".into());
         }
         Ok(())
     }

@@ -12,6 +12,10 @@
   cursor: text;
 }
 
+.journal-page.is-placing-postit {
+  cursor: crosshair;
+}
+
 .text-element {
   position: absolute;
   border: 1px solid transparent;
@@ -109,6 +113,57 @@
 .text-controls button:disabled,
 .text-resize:disabled {
   cursor: not-allowed;
+}
+
+.postit-element {
+  --note-color: #f9e6a3;
+  border-radius: 3px 3px 12px 3px;
+  background: var(--note-color);
+  box-shadow: 2px 5px 10px #5c453523;
+}
+
+.postit-element[data-color="pink"] { --note-color: #f6cdd7; }
+.postit-element[data-color="sage"] { --note-color: #d6e5c7; }
+.postit-element[data-color="lilac"] { --note-color: #e2d5f2; }
+
+.postit-element:hover,
+.postit-element.is-selected,
+.postit-element:focus-within {
+  background: var(--note-color);
+}
+
+.postit-element .text-input {
+  height: calc(100% - 60px);
+  padding: 6px 12px;
+}
+
+.postit-color {
+  visibility: hidden;
+  position: absolute;
+  bottom: 5px;
+  left: 8px;
+  width: calc(100% - 40px);
+  height: 25px;
+  padding: 1px 5px;
+  border: 1px solid #5c453533;
+  border-radius: 4px;
+  background: #ffffff55;
+  color: var(--ink);
+  font: 12px "Nunito", sans-serif;
+  cursor: pointer;
+}
+
+.postit-element.is-selected .postit-color,
+.postit-element:focus-within .postit-color {
+  visibility: visible;
+}
+
+.postit-color:disabled { cursor: not-allowed; }
+
+.postit-element .text-resize {
+  border-radius: 8px 0 10px 0;
+  background: #ffffff55;
+  padding: 3px 5px;
 }
 
 .unknown-elements {

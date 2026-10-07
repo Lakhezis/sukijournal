@@ -3,7 +3,16 @@
 Bullet journal de escritorio para Debian 13, con interfaz HTML, CSS y JavaScript
 vanilla dentro de Tauri 2. El frontend utiliza ES Modules, sin npm ni bundler.
 
-## Etapa actual: 3 — Editor de texto e historial
+## Etapa actual: 4 — Post-it de colores
+
+La herramienta Post-it permite pegar notas de texto plano en la hoja y elegir
+amarillo, rosa, verde o lila desde el selector al pie de cada nota. El selector
+se muestra al editar o seleccionar la nota y se oculta al salir de ella.
+Se pueden escribir, mover, redimensionar y eliminar igual que los bloques de texto.
+Contenido, color, posición y tamaño se guardan automáticamente y se recuperan
+al reabrir. Todas estas acciones participan del historial de deshacer/rehacer.
+Texto y Post-it se pueden combinar en una misma página; cada herramienta se
+activa hasta colocar un elemento o cancelar con `Escape`.
 
 La herramienta Texto permite colocar bloques en la hoja, escribir texto plano
 multilínea, moverlos, cambiar su tamaño y eliminarlos. Los bloques conservan
@@ -29,16 +38,19 @@ una confirmación y recuperar la versión guardada, por ejemplo ante un conflict
 entre ventanas. Terminar el proceso por la fuerza o apagar el equipo puede perder cambios
 que todavía no hayan recibido confirmación de guardado.
 
-Post-it, Sellitos, Calendario y las cuatro herramientas del grupo Próximamente
+Sellitos, Calendario y las cuatro herramientas del grupo Próximamente
 quedan para etapas posteriores. Los tipos de elementos todavía desconocidos se
 conservan al guardar y la interfaz avisa si una página contiene alguno.
 
 Las capturas y los resultados de las comprobaciones locales están en `verification/`,
 una carpeta excluida de Git. Los scripts y pruebas reproducibles están en `tests/`.
-Verificación completada el 6 de octubre de 2026: ocho pruebas Rust y trece
-JavaScript aprobadas, interfaz comprobada en WebKitGTK a 1280 × 900 y 900 × 640
-con arrastres reales y sin errores, y ejecutable release probado con texto,
-movimiento, tamaño, cierre con escritura pendiente y reapertura de un journal temporal.
+Las pruebas de esta etapa agregan notas junto a textos anteriores, colores,
+validación, errores de guardado e historial. La comprobación de interfaz cubre
+WebKitGTK a 1280 × 900 y 900 × 640 con arrastres reales; la comprobación nativa
+usa un journal temporal para verificar escritura, color, geometría y reapertura.
+Verificación completada: diez pruebas Rust y diecisiete JavaScript aprobadas,
+doce grupos de comprobaciones de interfaz sin errores de carga o CSP, y cierre
+normal y reapertura del ejecutable release conservando texto y post-it.
 
 ## Dependencias de desarrollo
 
@@ -99,22 +111,26 @@ Esta etapa no genera todavía un instalador `.deb`.
 3. Escribí varias líneas. El estado pasa por «Guardando…» y llega a «Guardado» después de una pausa.
 4. Arrastrá el control Mover y la esquina inferior derecha para cambiar posición y tamaño.
 5. Probá deshacer y rehacer con los botones y los atajos. Eliminá un texto con `×` y recuperalo con deshacer.
-6. Creá una página con `+`, agregá texto y volvé a la anterior: cada una conserva su contenido.
-7. Cerrá y volvé a abrir: deben aparecer las mismas páginas, textos y última selección.
-8. Creá muchas páginas: las pestañas se recorren horizontalmente sin ocultar `+` ni el contador.
-9. Desplazate por la hoja y redimensioná la ventana: las barras permanecen visibles.
-10. Probá con teclado: Texto + Enter crea un bloque; Tab permite llegar a Mover y al control de tamaño.
+6. Elegí Post-it y hacé clic en una zona libre. Escribí una nota y elegí su color al pie.
+7. Mové y redimensioná la nota; probá deshacer el color y la eliminación.
+8. Creá una página con `+`, agregá texto y notas y volvé a la anterior: cada una conserva su contenido.
+9. Cerrá y volvé a abrir: deben aparecer las mismas páginas, textos, notas y última selección.
+10. Creá muchas páginas: las pestañas se recorren horizontalmente sin ocultar `+` ni el contador.
+11. Desplazate por la hoja y redimensioná la ventana: las barras permanecen visibles.
+12. Probá con teclado: Texto o Post-it + Enter crea un elemento; Tab permite llegar a Mover, Color y al control de tamaño.
 
 Los controles Mover y Cambiar tamaño aceptan flechas de 1 píxel, o `Shift` + flechas
 para avanzar 24 píxeles (la separación de los puntos). `Delete` elimina el bloque
-seleccionado cuando el foco está en uno de sus controles; dentro del campo edita
+seleccionado cuando el foco está en uno de sus botones; dentro del campo edita
 el texto. `Escape` cancela la colocación o un arrastre y permite salir del campo.
 
-Cada bloque admite hasta 10.000 unidades UTF-16 de texto y queda dentro del área
-interior de la hoja, de 852 × 1078 píxeles. Comienza con 240 × 160 y tiene un tamaño
-mínimo de 120 × 88; si el contenido ocupa más espacio, se puede recorrer el campo
-o aumentar el bloque. Esta etapa utiliza una tipografía y color fijos, sin formato
-enriquecido.
+Cada elemento admite hasta 10.000 unidades UTF-16 de texto y queda dentro del área
+interior de la hoja, de 852 × 1078 píxeles. El bloque de texto comienza con 240 × 160
+y tiene un mínimo de 120 × 88; el post-it comienza con 240 × 240 y tiene un mínimo
+de 160 × 144 para mantener sus controles accesibles. Si el contenido ocupa más
+espacio, se puede recorrer el campo o aumentar el elemento. La tipografía es fija
+y el contenido es texto plano. Los post-it admiten los cuatro colores indicados;
+no se implementan todavía rotación ni formato enriquecido.
 
 En modo de desarrollo puedes abrir el inspector web con Ctrl+Shift+I.
 Abrir `frontend/index.html` en un navegador común muestra un aviso: el guardado
@@ -125,7 +141,7 @@ requiere ejecutar la aplicación Tauri.
 Almacenamiento real: creación, reapertura, contenido de páginas, validación,
 rollback ante una escritura fallida, conflictos entre instancias y rechazo de bases
 incompatibles sin modificar su contenido. Incluye texto, geometría, eliminación
-y rechazo de bloques inválidos:
+y rechazo de textos, notas y colores inválidos sin modificar los datos guardados:
 
 ```sh
 ~/.cargo/bin/cargo test --manifest-path src-tauri/Cargo.toml --release --features custom-protocol --locked
@@ -139,6 +155,7 @@ no es una dependencia de la aplicación:
 ```sh
 node --experimental-default-type=module tests/store.test.mjs
 node --experimental-default-type=module tests/editor.test.mjs
+node --experimental-default-type=module tests/postit.test.mjs
 ```
 
 Interfaz en WebKitGTK con una persistencia simulada y la CSP de producción.
@@ -150,7 +167,7 @@ Python 3, PyGObject con Gtk 3/WebKit2 4.1 y `libXtst`:
 ```
 
 Después de compilar el ejecutable release, la comprobación nativa crea un journal
-temporal, agrega páginas y texto, mueve y redimensiona con teclado, cierra durante
+temporal, agrega páginas, texto y un post-it, elige un color, mueve y redimensiona con teclado, cierra durante
 una escritura pendiente y verifica la reapertura.
 Requiere X11, `xwininfo`, `xprop` y `libXtst`; no modifica el journal personal:
 
@@ -166,8 +183,8 @@ Requiere X11, `xwininfo`, `xprop` y `libXtst`; no modifica el journal personal:
 - `frontend/css/toolbar.css`: barra lateral y herramientas.
 - `frontend/css/board.css`: superficie de trabajo y hoja punteada.
 - `frontend/js/app.js`: renderizado, navegación y cierre con guardado pendiente.
-- `frontend/js/editor.js`: campos de texto, selección y gestos con ratón o teclado.
-- `frontend/js/elements.js`: operaciones y límites de los bloques de texto.
+- `frontend/js/editor.js`: textos y post-it, selección, colores y gestos con ratón o teclado.
+- `frontend/js/elements.js`: operaciones, paleta y límites de textos y post-it.
 - `frontend/js/journal.js`: modelo y operaciones sobre las páginas.
 - `frontend/js/store.js`: estado del editor, historial y cola de guardado con reintentos.
 - `frontend/js/storage.js`: adaptador de los comandos nativos.
@@ -199,8 +216,11 @@ en la sesión; el frontend no contiene una ruta fija.
 
 La base usa `PRAGMA user_version = 1`, una tabla `journal` y una tabla `pages`.
 Las páginas almacenan identificador, posición, título y elementos JSON. Los textos
-usan `{ type: "text", id, x, y, width, height, text }`; no se necesita una migración
-de la base creada en la etapa 2. La escritura espera 300 ms de pausa antes de guardar;
+usan `{ type: "text", id, x, y, width, height, text }`; los post-it usan
+`{ type: "postit", id, x, y, width, height, text, color }`, con `color` igual a
+`yellow`, `pink`, `sage` o `lilac`. Los identificadores de textos y notas son únicos
+dentro de cada página. No se necesita una migración de la base creada en la etapa 2.
+La escritura espera 300 ms de pausa antes de guardar;
 navegar, deshacer/rehacer o cerrar confirma los cambios pendientes. Guardar
 actualiza el conjunto en una sola transacción, sin dejar páginas a medio escribir.
 Cada guardado incrementa una revisión: una ventana con estado anterior no puede
