@@ -12,7 +12,8 @@
   cursor: text;
 }
 
-.journal-page.is-placing-postit {
+.journal-page.is-placing-postit,
+.journal-page.is-placing-stamp {
   cursor: crosshair;
 }
 
@@ -164,6 +165,26 @@
   border-radius: 8px 0 10px 0;
   background: #ffffff55;
   padding: 3px 5px;
+}
+
+.stamp-artwork {
+  position: absolute;
+  inset: 14px;
+  width: calc(100% - 28px);
+  height: calc(100% - 28px);
+  object-fit: contain;
+  pointer-events: none;
+  user-select: none;
+}
+
+.stamp-element .text-controls,
+.stamp-element .text-resize {
+  position: relative;
+  z-index: 1;
+}
+
+.stamp-element .text-resize {
+  position: absolute;
 }
 
 .unknown-elements {

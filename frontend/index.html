@@ -94,7 +94,7 @@
             <span class="tool-icon tool-icon-yellow"><svg class="icon" aria-hidden="true"><use href="#icon-postit" /></svg></span>
             <span>Post-it</span>
           </button>
-          <button class="tool-button" type="button" disabled title="Sellitos — en preparación">
+          <button class="tool-button" id="tool-stamp" type="button" disabled aria-pressed="false" aria-expanded="false" aria-controls="stamp-picker" title="Agregar un sellito">
             <span class="tool-icon tool-icon-pink"><svg class="icon" aria-hidden="true"><use href="#icon-stamp" /></svg></span>
             <span>Sellitos</span>
           </button>
@@ -110,6 +110,12 @@
 
         <p class="tool-help" id="text-tool-help" hidden>Hacé clic en la hoja para agregar texto. Con teclado, pulsá Enter. Escape cancela.</p>
         <p class="tool-help" id="postit-tool-help" hidden>Hacé clic en la hoja para pegar un post-it. Con teclado, pulsá Enter. Podés cambiar su color en la nota. Escape cancela.</p>
+
+        <fieldset class="stamp-picker" id="stamp-picker" hidden>
+          <legend>Elegí un sellito</legend>
+          <div class="stamp-options" id="stamp-options"></div>
+          <p class="tool-help">Elegí un dibujo y hacé clic en la hoja. Con teclado, pulsá Enter en la hoja. Escape cancela.</p>
+        </fieldset>
 
         <div class="tool-group future-tools" role="group" aria-labelledby="future-tools-heading">
           <p class="group-label" id="future-tools-heading">Próximamente</p>

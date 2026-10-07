@@ -67,6 +67,12 @@ manager.connect('script-message-received::check',
                 lambda _manager, result: errors.append(result.get_js_value().to_string()))
 manager.add_script(WebKit2.UserScript.new(MOCK, WebKit2.UserContentInjectedFrames.TOP_FRAME, WebKit2.UserScriptInjectionTime.START, None, None))
 manager.add_script(WebKit2.UserScript.new('''
+window.pointerTrace=[];
+for (const type of ['pointerdown','pointermove','pointerup']) {
+  document.addEventListener(type,event=>window.pointerTrace.push({type,x:event.clientX,y:event.clientY,
+    target:event.target.className,trusted:event.isTrusted,
+    sx:document.querySelector('#workspace').scrollLeft,sy:document.querySelector('#workspace').scrollTop}),true);
+}
 addEventListener('error', event => window.webkit.messageHandlers.check.postMessage(
   event.message || 'Error de recurso: ' + (event.target.src || event.target.href)), true);
 addEventListener('securitypolicyviolation', event => window.webkit.messageHandlers.check.postMessage('CSP: ' + event.violatedDirective));
@@ -169,10 +175,14 @@ def pause(seconds=0.1):
         time.sleep(0.01)
 
 
-def drag(selector, dx, dy, cancel=False):
+def drag(selector, dx, dy, cancel=False, scroll=None):
     x11.XRaiseWindow(xdisplay, window.get_window().get_xid())
     x11.XSetInputFocus(xdisplay, window.get_window().get_xid(), 1, 0)
     x11.XFlush(xdisplay)
+    pause()
+    # El gestor de ventanas puede limitar la altura inicial a la de la pantalla.
+    # Llevar el control a la zona visible evita enviar el arrastre sobre el pie.
+    js("document.querySelector(" + json.dumps(selector) + ").scrollIntoView({block:'center',inline:'nearest'}); 'ok'")
     pause()
     point = json.loads(js("JSON.stringify((() => { const r = document.querySelector(" + json.dumps(selector) + ").getBoundingClientRect(); return [r.left + r.width/2, r.top + r.height/2]; })())"))
     root_x, root_y = window.get_window().get_origin()[-2:]
@@ -186,6 +196,9 @@ def drag(selector, dx, dy, cancel=False):
     xtest.XTestFakeButtonEvent(xdisplay, 1, 1, 0)
     x11.XFlush(xdisplay)
     pause()
+    if scroll:
+        js("document.querySelector('#workspace').scrollBy(" + str(scroll[0]) + "," + str(scroll[1]) + "); 'ok'")
+        pause()
     xtest.XTestFakeMotionEvent(xdisplay, -1, x + dx, y + dy, 0)
     x11.XFlush(xdisplay)
     pause()
@@ -221,6 +234,14 @@ def postit_geometry():
 def set_color(color):
     js("(() => {const select=document.querySelector('.postit-color'); select.focus(); select.value=" + json.dumps(color) + "; select.dispatchEvent(new Event('change',{bubbles:true}));})(); 'ok'")
 
+
+def stamp_geometry():
+    return json.loads(js("JSON.stringify(JSON.parse(localStorage.getItem('testJournal')).pages.find(p=>p.id===document.querySelector('[aria-current=page]').dataset.pageId).elements.find(e=>e.type==='stamp'))"))
+
+
+def place_stamp(stamp, x, y):
+    js("document.querySelector('#tool-stamp').click(); document.querySelector('[data-stamp=" + stamp + "]').click(); (()=>{const p=document.querySelector('#journal-page'),r=p.getBoundingClientRect(); p.dispatchEvent(new MouseEvent('click',{bubbles:true,clientX:r.left+" + str(x + 1) + ",clientY:r.top+" + str(y + 1) + "}));})(); 'ok'")
+
 reports = []
 try:
     loaded = []
@@ -230,7 +251,7 @@ try:
     wait_for(lambda: loaded)
     wait_for(lambda: js("document.querySelector('#app-status').textContent") == 'Guardado')
     js("localStorage.clear(); 'ok'")
-    assert js("String(document.querySelectorAll('.tool-button:disabled').length)") == '6'
+    assert js("String(document.querySelectorAll('.tool-button:disabled').length)") == '5'
     assert js("String(document.querySelector('#add-page').disabled)") == 'false'
     assert js("String(document.querySelector('#journal-page').hidden)") == 'false'
     assert js("String(document.querySelectorAll('#page-tabs button').length)") == '1'
@@ -283,7 +304,7 @@ try:
     assert text_geometry()['x'] == 124
 
     # Arrastre real, redimensionado y cancelación con Escape.
-    js("window.pointerTrace=[]; for(const type of ['pointerdown','pointermove','pointerup']) document.addEventListener(type,e=>window.pointerTrace.push({type, x:e.clientX,y:e.clientY, target:e.target.className, trusted:e.isTrusted, sx:document.querySelector('#workspace').scrollLeft, sy:document.querySelector('#workspace').scrollTop}),true); 'ok'")
+    js("window.pointerTrace=[]; 'ok'")
     drag('.text-move', 60, 40)
     assert js('String(window.pointerTrace.every(event=>event.trusted))') == 'true'
     saved()
@@ -384,7 +405,7 @@ try:
 
     drag('.postit-element .text-move', -40, 40)
     saved()
-    assert (postit_geometry()['x'],postit_geometry()['y']) == (410,120)
+    assert (postit_geometry()['x'],postit_geometry()['y']) == (410,120), (postit_geometry(), js('JSON.stringify(window.pointerTrace)'))
     drag('.postit-element .text-resize', 24, 24)
     saved()
     assert (postit_geometry()['width'],postit_geometry()['height']) == (264,264)
@@ -437,6 +458,92 @@ try:
     assert postit_geometry() == original_note
     reports.append({'check':'failed post-it save retains color, retries and preserves unknown types', 'result':'passed'})
 
+    # Catálogo local completo y cancelación con teclado desde el selector.
+    js("document.querySelector('#tool-stamp').click(); 'ok'")
+    assert js("String(document.querySelector('#stamp-picker').hidden)") == 'false'
+    assert js("document.querySelector('#tool-stamp').getAttribute('aria-expanded')") == 'true'
+    assert js("String(document.querySelectorAll('.stamp-choice').length)") == '6'
+    assert js("String([...document.querySelectorAll('.stamp-choice img')].every(image=>image.complete && image.naturalWidth>0))") == 'true'
+    js("document.querySelector('.stamp-choice').focus(); document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true})); 'ok'")
+    assert js("String(document.querySelector('#stamp-picker').hidden)") == 'true'
+    assert js("document.activeElement.id") == 'tool-stamp'
+    assert js("String(document.querySelectorAll('.stamp-element').length)") == '0'
+    for stamp in ['flower','leaf','star','heart','rainbow','moon']:
+        place_stamp(stamp, 450, 440)
+        saved()
+        wait_for(lambda: js("String(document.querySelector('.stamp-artwork').complete)") == 'true')
+        assert stamp_geometry()['stamp'] == stamp
+        assert js("String(document.querySelector('.stamp-artwork').naturalWidth > 0)") == 'true'
+        assert js("document.querySelector('.stamp-artwork').getAttribute('src')") == f'assets/stamps/{stamp}.svg'
+        assert js("String(document.querySelector('.stamp-element textarea') === null)") == 'true'
+        assert js("String(document.activeElement.closest('.stamp-element') !== null)") == 'true'
+        assert js("String(document.querySelector('#stamp-picker').hidden)") == 'true'
+        assert text_value() == literal and postit_geometry() == original_note
+        if stamp != 'moon':
+            js("document.querySelector('.stamp-element .text-remove').click(); 'ok'")
+            saved()
+    assert js("document.querySelector('#page-subtitle').textContent") == '1 texto · 1 post-it · 1 sellito'
+    assert js("getComputedStyle(document.querySelector('.postit-color')).visibility") == 'hidden'
+    reports.append({'check':'six local stamp drawings, picker keyboard cancellation and coexistence', 'result':'passed'})
+
+    js("document.querySelector('.stamp-element .text-move').dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowLeft',shiftKey:true,bubbles:true})); 'ok'")
+    saved()
+    assert stamp_geometry()['x'] == 426
+    drag('.stamp-element .text-move', 24, -48)
+    saved()
+    assert (stamp_geometry()['x'],stamp_geometry()['y']) == (450,392), (stamp_geometry(), js('JSON.stringify(window.pointerTrace.slice(-12))'))
+    drag('.stamp-element .text-resize', 48, 24)
+    saved()
+    assert (stamp_geometry()['width'],stamp_geometry()['height']) == (208,208), (stamp_geometry(), js('JSON.stringify(window.pointerTrace.slice(-12))'))
+    js("document.querySelector('#undo').click(); 'ok'")
+    saved()
+    assert stamp_geometry()['width'] == stamp_geometry()['height'] == 160
+    js("document.querySelector('#redo').click(); 'ok'")
+    saved()
+    assert stamp_geometry()['width'] == stamp_geometry()['height'] == 208
+    original_stamp = stamp_geometry()
+    drag('.stamp-element .text-move', 24, 24, cancel=True)
+    assert stamp_geometry() == original_stamp
+    drag('.stamp-element .text-move', 0, 0, scroll=(0,48))
+    saved()
+    assert stamp_geometry()['y'] == 440
+    js("document.querySelector('#workspace').scrollTo(0,0); 'ok'")
+    pause()
+    original_stamp = stamp_geometry()
+    js("document.querySelector('.stamp-element .text-remove').click(); 'ok'")
+    saved()
+    assert js("String(document.querySelectorAll('.stamp-element').length)") == '0'
+    js("document.querySelector('#undo').click(); 'ok'")
+    saved()
+    assert stamp_geometry() == original_stamp
+    js("document.querySelectorAll('#page-tabs button')[1].click(); 'ok'")
+    saved()
+    assert js("String(document.querySelectorAll('.stamp-element').length)") == '0'
+    js("document.querySelector('#page-tabs button').click(); 'ok'")
+    saved()
+    assert stamp_geometry() == original_stamp
+    loaded.clear()
+    view.reload()
+    wait_for(lambda: loaded)
+    saved()
+    assert stamp_geometry() == original_stamp
+    assert text_value() == literal and postit_geometry() == original_note
+    assert js("getComputedStyle(document.querySelector('.postit-color')).visibility") == 'hidden'
+    reports.append({'check':'stamp keyboard, drag with scroll, proportional resize, cancel, deletion, history and reload', 'result':'passed'})
+
+    js("window.failSave=true; document.querySelector('.stamp-element .text-move').focus(); document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowRight',shiftKey:true,bubbles:true})); 'ok'")
+    wait_for(lambda: js("document.querySelector('#app-status').textContent") == 'Sin guardar')
+    assert js("document.querySelector('.stamp-element').style.left") == '474px'
+    assert js("String(document.querySelector('.stamp-element .text-move').disabled)") == 'true'
+    assert js("String(document.querySelector('#tool-stamp').disabled)") == 'true'
+    js("window.failSave=false; document.querySelector('#retry-storage').click(); 'ok'")
+    saved()
+    assert stamp_geometry()['x'] == 474
+    js("document.querySelector('#undo').click(); 'ok'")
+    saved()
+    assert stamp_geometry() == original_stamp
+    reports.append({'check':'stamp save failure retains geometry and retries before undo', 'result':'passed'})
+
     js("window.failSave = true; document.querySelector('#add-page').click(); 'ok'")
     wait_for(lambda: js("document.querySelector('#app-status').textContent") == 'Sin guardar')
     assert js("String(document.querySelector('#storage-notice').hidden)") == 'false'
@@ -485,6 +592,8 @@ try:
     type_text('Recordatorios\nRegar las plantas\nSalir a caminar 🌱', '.postit-element .text-input')
     set_color('sage')
     saved()
+    place_stamp('star', 336, 312)
+    saved()
     for width, height in [(1280,900), (900,640)]:
         view.set_size_request(width,height)
         geometry = Gdk.Geometry()
@@ -507,21 +616,23 @@ try:
         assert float(js("String(document.activeElement.getBoundingClientRect().y)")) >= 0
         js("document.activeElement.click(); 'ok'")
         assert js("document.activeElement.id") == 'workspace'
-        snapshot(f'stage4-webkit-{width}x{height}.png')
+        snapshot(f'stage5-webkit-{width}x{height}.png')
         reports.append({'viewport':[width,height], 'result':'passed'})
 
     type_text('Texto confirmado antes de cerrar')
     type_text('Nota confirmada antes de cerrar', '.postit-element .text-input')
+    js("document.querySelector('.stamp-element .text-move').focus(); document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowRight',shiftKey:true,bubbles:true})); 'ok'")
     js("document.querySelector('#add-page').click(); window.testCloseHandler({preventDefault(){window.closePrevented=true}}); 'ok'")
     assert js("String(Boolean(window.testDestroyed))") == 'false'
     wait_for(lambda: js("String(Boolean(window.testDestroyed))") == 'true')
     assert js("JSON.parse(localStorage.getItem('testJournal')).pages.length.toString()") == '19'
     assert js("JSON.parse(localStorage.getItem('testJournal')).pages[17].elements[0].text") == 'Texto confirmado antes de cerrar'
     assert js("JSON.parse(localStorage.getItem('testJournal')).pages[17].elements[1].text") == 'Nota confirmada antes de cerrar'
-    reports.append({'check':'close waits for pending text, post-it and page save', 'result':'passed'})
+    assert js("JSON.parse(localStorage.getItem('testJournal')).pages[17].elements[2].x.toString()") == '360'
+    reports.append({'check':'close waits for pending text, post-it, stamp and page save', 'result':'passed'})
     assert not errors, errors
 finally:
     window.destroy()
     server.shutdown()
-(OUT / 'stage4-frontend-results.json').write_text(json.dumps({'checks':reports,'errors':errors},indent=2))
+(OUT / 'stage5-frontend-results.json').write_text(json.dumps({'checks':reports,'errors':errors},indent=2))
 print(json.dumps({'checks':reports,'errors':errors},ensure_ascii=False))

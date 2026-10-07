@@ -388,4 +388,63 @@ mod tests {
         assert!(storage.save(&duplicate).is_err());
         assert_eq!(storage.load().unwrap(), original);
     }
+
+    #[test]
+    fn persists_catalog_stamps_alongside_existing_elements_and_deletes_them() {
+        let root = tempfile::tempdir().unwrap();
+        let mut storage = Storage::open(root.path()).unwrap();
+        let mut journal = storage.load().unwrap();
+        journal.pages[0].elements = vec![
+            json!({"type":"text", "id":"text-1", "text":"Texto previo", "x":24,
+                "y":24, "width":240, "height":160}),
+            json!({"type":"postit", "id":"note-1", "text":"Nota previa", "color":"pink",
+                "x":336, "y":24, "width":240, "height":240}),
+            json!({"type":"future", "data":{"keep":true}}),
+        ];
+        for stamp in ["flower", "leaf", "star", "heart", "rainbow", "moon"] {
+            journal.pages[0]
+                .elements
+                .push(json!({"type":"stamp", "id":stamp, "stamp":stamp,
+                "x":600.5, "y":700, "width":208, "height":208}));
+        }
+        journal.revision = storage.save(&journal).unwrap();
+        drop(storage);
+        let mut reopened = Storage::open(root.path()).unwrap();
+        assert_eq!(reopened.load().unwrap(), journal);
+        journal.pages[0].elements.truncate(3);
+        journal.revision = reopened.save(&journal).unwrap();
+        assert_eq!(reopened.load().unwrap(), journal);
+    }
+
+    #[test]
+    fn rejects_invalid_stamps_without_overwriting_saved_data() {
+        let root = tempfile::tempdir().unwrap();
+        let mut storage = Storage::open(root.path()).unwrap();
+        let original = storage.load().unwrap();
+        let valid = json!({"type":"stamp", "id":"stamp-1", "stamp":"star",
+            "x":24, "y":24, "width":160, "height":160});
+        for (field, value) in [
+            ("stamp", json!("../../other")),
+            ("stamp", json!(null)),
+            ("width", json!(95)),
+            ("height", json!(170)),
+            ("x", json!(-1)),
+            ("y", json!(1078)),
+            ("id", json!("")),
+        ] {
+            let mut invalid = original.clone();
+            let mut stamp = valid.clone();
+            stamp[field] = value;
+            invalid.pages[0].elements.push(stamp);
+            assert!(storage.save(&invalid).is_err());
+        }
+        let mut duplicate = original.clone();
+        duplicate.pages[0].elements = vec![
+            valid,
+            json!({"type":"postit", "id":"stamp-1", "text":"Nota", "color":"pink",
+                "x":24, "y":24, "width":240, "height":240}),
+        ];
+        assert!(storage.save(&duplicate).is_err());
+        assert_eq!(storage.load().unwrap(), original);
+    }
 }

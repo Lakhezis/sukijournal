@@ -1,5 +1,6 @@
-import { createText, createPostit, insertElement, editElementText, moveElement, resizeElement, deleteElement,
-  colorPostit, isEditableElement, minimumSize, POSTIT_COLORS, PAPER, TEXT_LIMIT } from "./elements.js";
+import { createText, createPostit, createStamp, insertElement, editElementText, moveElement, resizeElement, deleteElement,
+  colorPostit, isEditableElement, resizedGeometry, POSTIT_COLORS, PAPER, TEXT_LIMIT } from "./elements.js";
+import { findStamp } from "./stamps.js";
 
 // Vista del editor: los gestos usan coordenadas de la hoja y producen cambios de estado.
 export function createEditor({ paper, workspace, getStore, onPlacement }) {
@@ -8,6 +9,7 @@ export function createEditor({ paper, workspace, getStore, onPlacement }) {
   let ready = false;
   let selectedId = null;
   let placing = null;
+  let stampValue = "flower";
   let gesture = null;
   const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 
@@ -17,9 +19,10 @@ export function createEditor({ paper, workspace, getStore, onPlacement }) {
   }
 
   function setPlacement(value) {
-    placing = ready && (value === "text" || value === "postit") ? value : null;
+    placing = ready && ["text", "postit", "stamp"].includes(value) ? value : null;
     paper.classList.toggle("is-placing-text", placing === "text");
     paper.classList.toggle("is-placing-postit", placing === "postit");
+    paper.classList.toggle("is-placing-stamp", placing === "stamp");
     onPlacement(placing);
     if (placing) select(null);
   }
@@ -31,7 +34,7 @@ export function createEditor({ paper, workspace, getStore, onPlacement }) {
 
   function commitText(id) {
     const entry = entries.get(id);
-    if (!ready || !entry || !model?.elements.some(item => isEditableElement(item) && item.id === id)) return;
+    if (!ready || !entry?.input || !model?.elements.some(item => isEditableElement(item) && item.id === id)) return;
     getStore().update(journal => editElementText(journal, model.id, id, entry.input.value),
       { group: `text:${model.id}:${id}`, deferSave: true });
   }
@@ -77,12 +80,10 @@ export function createEditor({ paper, workspace, getStore, onPlacement }) {
     const dx = event.clientX - gesture.startX + workspace.scrollLeft - gesture.scrollX;
     const dy = event.clientY - gesture.startY + workspace.scrollTop - gesture.scrollY;
     const original = gesture.original;
-    const minimum = minimumSize(original);
     gesture.preview = gesture.kind === "move"
       ? { ...original, x: clamp(original.x + dx, 0, PAPER.width - original.width),
         y: clamp(original.y + dy, 0, PAPER.height - original.height) }
-      : { ...original, width: clamp(original.width + dx, minimum.width, PAPER.width - original.x),
-        height: clamp(original.height + dy, minimum.height, PAPER.height - original.y) };
+      : resizedGeometry(original, original.width + dx, original.height + dy);
     position(gesture.entry.node, gesture.preview);
   }
 
@@ -109,12 +110,14 @@ export function createEditor({ paper, workspace, getStore, onPlacement }) {
 
   function newEntry(element) {
     const postit = element.type === "postit";
-    const label = postit ? "post-it" : "texto";
+    const stamp = element.type === "stamp";
+    const label = stamp ? "sellito" : postit ? "post-it" : "texto";
     const node = document.createElement("div");
     node.className = postit ? "text-element postit-element" : "text-element";
+    if (stamp) node.classList.add("stamp-element");
     node.dataset.elementId = element.id;
     node.setAttribute("role", "group");
-    node.setAttribute("aria-label", postit ? "Post-it" : "Bloque de texto");
+    node.setAttribute("aria-label", stamp ? `Sellito: ${findStamp(element.stamp).label}` : postit ? "Post-it" : "Bloque de texto");
     const controls = document.createElement("div");
     controls.className = "text-controls";
     const move = document.createElement("button");
@@ -129,12 +132,22 @@ export function createEditor({ paper, workspace, getStore, onPlacement }) {
     removeButton.textContent = "×";
     removeButton.setAttribute("aria-label", `Eliminar ${label}`);
     removeButton.title = `Eliminar ${label}`;
-    const input = document.createElement("textarea");
-    input.className = "text-input";
-    input.setAttribute("aria-label", `Contenido del ${label}`);
-    input.placeholder = postit ? "Algo para recordar…" : "Escribí tus ideas…";
-    input.maxLength = TEXT_LIMIT;
-    input.spellcheck = true;
+    let input = null;
+    let artwork = null;
+    if (stamp) {
+      artwork = document.createElement("img");
+      artwork.className = "stamp-artwork";
+      artwork.src = findStamp(element.stamp).src;
+      artwork.alt = "";
+      artwork.draggable = false;
+    } else {
+      input = document.createElement("textarea");
+      input.className = "text-input";
+      input.setAttribute("aria-label", `Contenido del ${label}`);
+      input.placeholder = postit ? "Algo para recordar…" : "Escribí tus ideas…";
+      input.maxLength = TEXT_LIMIT;
+      input.spellcheck = true;
+    }
     const resize = document.createElement("button");
     resize.type = "button";
     resize.className = "text-resize";
@@ -142,7 +155,7 @@ export function createEditor({ paper, workspace, getStore, onPlacement }) {
     resize.setAttribute("aria-label", `Cambiar tamaño del ${label}; arrastrá o usá las flechas`);
     resize.title = "Arrastrá para cambiar el tamaño. Flechas: 1 px; Shift + flechas: 24 px.";
     controls.append(move, removeButton);
-    node.append(controls, input, resize);
+    node.append(controls, input || artwork, resize);
     let color = null;
     if (postit) {
       color = document.createElement("select");
@@ -163,16 +176,25 @@ export function createEditor({ paper, workspace, getStore, onPlacement }) {
       // El orden de Tab permite escribir, elegir color y después cambiar tamaño.
       node.insertBefore(color, resize);
     }
-    const entry = { node, input, move, removeButton, resize, color, type: element.type, composing: false };
+    const entry = { node, input, artwork, move, removeButton, resize, color, type: element.type, composing: false };
     node.addEventListener("focusin", () => select(element.id));
-    node.addEventListener("focusout", event => {
-      if (selectedId === element.id && !node.contains(event.relatedTarget)) select(null);
+    node.addEventListener("focusout", () => {
+      // Esperar el traslado del foco evita ocultar el selector durante Shift+Tab en WebKit.
+      setTimeout(() => {
+        if (selectedId === element.id && !node.contains(document.activeElement)) select(null);
+      }, 0);
     });
-    node.addEventListener("pointerdown", () => { select(element.id); setPlacement(false); });
-    input.addEventListener("input", () => commitText(element.id));
-    input.addEventListener("compositionstart", () => { entry.composing = true; });
-    input.addEventListener("compositionend", () => { entry.composing = false; commitText(element.id); });
-    input.addEventListener("blur", () => { commitText(element.id); getStore().endGroup(); });
+    node.addEventListener("pointerdown", event => {
+      select(element.id);
+      setPlacement(false);
+      if (stamp && event.target === node) move.focus({ preventScroll: true });
+    });
+    if (input) {
+      input.addEventListener("input", () => commitText(element.id));
+      input.addEventListener("compositionstart", () => { entry.composing = true; });
+      input.addEventListener("compositionend", () => { entry.composing = false; commitText(element.id); });
+      input.addEventListener("blur", () => { commitText(element.id); getStore().endGroup(); });
+    }
     removeButton.addEventListener("click", () => remove(element.id));
     for (const [handle, kind] of [[move, "move"], [resize, "resize"]]) {
       handle.addEventListener("pointerdown", event => beginGesture(event, element.id, kind, entry));
@@ -214,8 +236,15 @@ export function createEditor({ paper, workspace, getStore, onPlacement }) {
       remaining.delete(element.id);
       if (gesture?.id !== element.id) position(entry.node, element);
       // Evita reemplazar el campo mientras se escribe o se compone texto con un IME.
-      if (!entry.composing && entry.input.value !== element.text) entry.input.value = element.text;
-      entry.input.readOnly = !ready;
+      if (entry.input) {
+        if (!entry.composing && entry.input.value !== element.text) entry.input.value = element.text;
+        entry.input.readOnly = !ready;
+      }
+      if (entry.artwork) {
+        const stamp = findStamp(element.stamp);
+        if (entry.artwork.getAttribute("src") !== stamp.src) entry.artwork.src = stamp.src;
+        entry.node.setAttribute("aria-label", `Sellito: ${stamp.label}`);
+      }
       for (const button of [entry.move, entry.removeButton, entry.resize]) button.disabled = !ready;
       if (entry.color) {
         entry.color.value = element.color;
@@ -229,11 +258,14 @@ export function createEditor({ paper, workspace, getStore, onPlacement }) {
 
   function addAt(x, y) {
     if (!ready || !model) return;
-    const element = placing === "postit" ? createPostit(crypto.randomUUID(), x, y) : createText(crypto.randomUUID(), x, y);
+    const id = crypto.randomUUID();
+    const element = placing === "stamp" ? createStamp(id, stampValue, x, y)
+      : placing === "postit" ? createPostit(id, x, y) : createText(id, x, y);
     if (getStore().update(journal => insertElement(journal, model.id, element))) {
       setPlacement(false);
       select(element.id);
-      entries.get(element.id).input.focus({ preventScroll: true });
+      const entry = entries.get(element.id);
+      (entry.input || entry.move).focus({ preventScroll: true });
     }
   }
 
@@ -264,6 +296,13 @@ export function createEditor({ paper, workspace, getStore, onPlacement }) {
   });
 
   return { render, setPlacement,
+    chooseStamp(value) {
+      if (!ready || !findStamp(value)) return false;
+      stampValue = value;
+      setPlacement("stamp");
+      paper.focus({ preventScroll: true });
+      return true;
+    },
     togglePlacement(type = "text") { setPlacement(placing === type ? null : type); if (placing) paper.focus({ preventScroll: true }); },
     finish() { endGesture(true); for (const id of entries.keys()) commitText(id); getStore().endGroup(); },
   };

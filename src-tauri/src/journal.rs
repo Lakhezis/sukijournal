@@ -64,15 +64,37 @@ impl Journal {
             }
             let mut element_ids = HashSet::new();
             for element in &page.elements {
-                let postit = match element.get("type").and_then(|value| value.as_str()) {
-                    Some("text") => false,
-                    Some("postit") => true,
+                let kind = match element.get("type").and_then(|value| value.as_str()) {
+                    Some(kind @ ("text" | "postit" | "stamp")) => kind,
                     _ => continue,
                 };
-                let text: TextElement = serde_json::from_value(element.clone())
-                    .map_err(|_| "Hay un texto o post-it con datos inválidos.")?;
-                text.validate(postit)?;
-                if postit
+                let geometry: ElementGeometry = serde_json::from_value(element.clone())
+                    .map_err(|_| "Hay un elemento con datos inválidos.")?;
+                let (min_width, min_height) = match kind {
+                    "stamp" => (96.0, 96.0),
+                    "postit" => (160.0, 144.0),
+                    _ => (120.0, 88.0),
+                };
+                geometry.validate(min_width, min_height)?;
+                if kind == "stamp" {
+                    if geometry.width != geometry.height
+                        || !matches!(
+                            element.get("stamp").and_then(|value| value.as_str()),
+                            Some("flower" | "leaf" | "star" | "heart" | "rainbow" | "moon")
+                        )
+                    {
+                        return Err("Hay un sellito con dibujo o tamaño inválido.".into());
+                    }
+                } else {
+                    let text = element
+                        .get("text")
+                        .and_then(|value| value.as_str())
+                        .ok_or("Hay un elemento con texto inválido.")?;
+                    if text.encode_utf16().count() > 10_000 {
+                        return Err("El texto de un elemento supera el límite admitido.".into());
+                    }
+                }
+                if kind == "postit"
                     && !matches!(
                         element.get("color").and_then(|value| value.as_str()),
                         Some("yellow" | "pink" | "sage" | "lilac")
@@ -80,8 +102,8 @@ impl Journal {
                 {
                     return Err("Hay un post-it con un color inválido.".into());
                 }
-                if !element_ids.insert(text.id) {
-                    return Err("Hay textos o post-it con identificadores repetidos.".into());
+                if !element_ids.insert(geometry.id) {
+                    return Err("Hay elementos con identificadores repetidos.".into());
                 }
             }
         }
@@ -93,25 +115,18 @@ impl Journal {
 }
 
 #[derive(Deserialize)]
-struct TextElement {
+struct ElementGeometry {
     id: String,
-    text: String,
     x: f64,
     y: f64,
     width: f64,
     height: f64,
 }
 
-impl TextElement {
-    fn validate(&self, postit: bool) -> Result<(), String> {
-        let (min_width, min_height) = if postit {
-            (160.0, 144.0)
-        } else {
-            (120.0, 88.0)
-        };
+impl ElementGeometry {
+    fn validate(&self, min_width: f64, min_height: f64) -> Result<(), String> {
         if self.id.is_empty()
             || self.id.encode_utf16().count() > 100
-            || self.text.encode_utf16().count() > 10_000
             || ![self.x, self.y, self.width, self.height]
                 .iter()
                 .all(|value| value.is_finite())
@@ -122,7 +137,7 @@ impl TextElement {
             || self.x + self.width > 852.0
             || self.y + self.height > 1078.0
         {
-            return Err("Hay un texto o post-it inválido o fuera de la hoja.".into());
+            return Err("Hay un elemento inválido o fuera de la hoja.".into());
         }
         Ok(())
     }

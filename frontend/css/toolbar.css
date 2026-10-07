@@ -54,6 +54,45 @@
   line-height: 1.6;
 }
 
+.stamp-picker {
+  min-width: 0;
+  margin: 16px 0 0;
+  padding: 10px 6px 4px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.stamp-picker legend {
+  padding: 0 5px;
+  color: var(--olive);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.stamp-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.stamp-choice {
+  display: grid;
+  justify-items: center;
+  gap: 3px;
+  padding: 6px 2px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.stamp-choice img { display: block; }
+.stamp-choice[aria-pressed="true"] { border-color: var(--salmon); background: #fbe4e0; }
+.stamp-choice:enabled:hover { background: var(--paper); }
+.stamp-choice:disabled { cursor: not-allowed; }
+
 .tool-button:enabled:hover {
   border-color: var(--border);
   background: var(--paper);

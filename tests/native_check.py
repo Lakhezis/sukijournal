@@ -55,9 +55,14 @@ def geometry(native):
 def click(native, x, y):
     root_x, root_y, _, _ = geometry(native)
     xtest.XTestFakeMotionEvent(display, -1, root_x + x, root_y + y, 0)
+    x11.XFlush(display)
+    time.sleep(0.05)
     xtest.XTestFakeButtonEvent(display, 1, 1, 0)
+    x11.XFlush(display)
+    time.sleep(0.05)
     xtest.XTestFakeButtonEvent(display, 1, 0, 0)
     x11.XFlush(display)
+    time.sleep(0.1)
 
 
 def key(keysym):
@@ -65,6 +70,7 @@ def key(keysym):
     xtest.XTestFakeKeyEvent(display, code, 1, 0)
     xtest.XTestFakeKeyEvent(display, code, 0, 0)
     x11.XFlush(display)
+    time.sleep(0.05)
 
 
 def modified_key(keysym, modifier=0xFFE1):
@@ -88,7 +94,7 @@ def screenshot(native, name):
     pixbuf.savev(str(OUT / name), "png", [], [])
 
 
-with tempfile.TemporaryDirectory(prefix="suki-stage4-", dir=OUT) as temporary:
+with tempfile.TemporaryDirectory(prefix="suki-stage5-", dir=OUT) as temporary:
     environment = dict(os.environ, XDG_DATA_HOME=temporary,
                        XDG_CACHE_HOME=str(Path(temporary) / "cache"),
                        XDG_CONFIG_HOME=str(Path(temporary) / "config"))
@@ -106,7 +112,7 @@ with tempfile.TemporaryDirectory(prefix="suki-stage4-", dir=OUT) as temporary:
 
     reports = []
     for run in (1, 2):
-        log_path = OUT / f"stage4-native-{run}.log"
+        log_path = OUT / f"stage5-native-{run}.log"
         with log_path.open("w") as log:
             process = subprocess.Popen([str(ROOT / "src-tauri/target/release/sukijournal")],
                                        cwd=ROOT, env=environment, stdout=log, stderr=log)
@@ -133,7 +139,7 @@ with tempfile.TemporaryDirectory(prefix="suki-stage4-", dir=OUT) as temporary:
                 x11.XFlush(display)
                 if run == 1:
                     assert len(state()["pages"]) == 1
-                    screenshot(native, "stage4-native-initial.png")
+                    screenshot(native, "stage5-native-initial.png")
                     click(native, 364, geometry(native)[3] - 36)
                     wait_for(lambda: len(state()["pages"]) == 2)
                     key(0xFF0D)  # Enter: el botón + conserva su foco.
@@ -190,16 +196,47 @@ with tempfile.TemporaryDirectory(prefix="suki-stage4-", dir=OUT) as temporary:
                     modified_key(0xFF54)
                     wait_for(lambda: all(json.loads(state()['pages'][0][2])[1][name] == value
                         for name,value in [('x',336),('y',48),('width',264),('height',264)]))
-                    # Cerrar durante el guardado diferido de la última letra del post-it.
+                    # Volver al texto de la nota antes de elegir un sellito.
                     modified_key(0xFF09)
+                    time.sleep(0.1)
                     modified_key(0xFF09)
+                    time.sleep(0.1)
                     modified_key(0xFF57, modifier=0xFFE3)
                     key(ord('x'))
                     final_note = 'recordatorios\nregar plantasx'
+                    wait_for(lambda: json.loads(state()['pages'][0][2])[1]['text'] == final_note)
+                    click(native, 100, 281)  # Sellitos; abre el catálogo y enfoca la hoja.
+                    time.sleep(0.2)
+                    for _ in range(2):
+                        modified_key(0xFF09)  # Hoja -> área de trabajo -> última opción (Luna).
+                        time.sleep(0.1)
+                    screenshot(native, 'stage5-native-picker-focus.png')
+                    key(0xFF0D)  # Elegir Luna y volver a la hoja.
+                    key(0xFF0D)  # Colocar el dibujo con teclado.
+                    wait_for(lambda: len(json.loads(state()['pages'][0][2])) == 3)
+                    screenshot(native, 'stage5-native-stamp-choice.png')
+                    assert json.loads(state()['pages'][0][2])[2]['stamp'] == 'moon', json.loads(state()['pages'][0][2])[2]
+                    # El sellito comienza con Mover enfocado y no contiene un campo de texto.
+                    for _ in range(24):
+                        modified_key(0xFF53)
+                        time.sleep(0.05)
+                    modified_key(0xFF54)
+                    for _ in range(2):
+                        key(0xFF09)  # Mover -> eliminar -> tamaño.
+                        time.sleep(0.1)
+                    modified_key(0xFF53)
+                    wait_for(lambda: all(json.loads(state()['pages'][0][2])[2][name] == value
+                        for name,value in [('x',600),('y',48),('width',184),('height',184)]))
+                    modified_key(ord('z'), modifier=0xFFE3)
+                    wait_for(lambda: json.loads(state()['pages'][0][2])[2]['width'] == 160)
+                    modified_key(ord('y'), modifier=0xFFE3)
+                    wait_for(lambda: json.loads(state()['pages'][0][2])[2]['width'] == 184)
+                    # Una última escala seguida de cierre confirma la cola de guardado.
+                    modified_key(0xFF54)
                     expected = None
                 else:
                     assert state() == expected, "La reapertura no conservó el texto ni su geometría"
-                screenshot(native, f"stage4-native-{run}.png")
+                screenshot(native, f"stage5-native-{run}.png")
                 # Alt+F4 pide el cierre normal y ejercita el guardado previo a destroy.
                 alt = x11.XKeysymToKeycode(display, 0xFFE9)
                 xtest.XTestFakeKeyEvent(display, alt, 1, 0)
@@ -216,6 +253,9 @@ with tempfile.TemporaryDirectory(prefix="suki-stage4-", dir=OUT) as temporary:
                     note = json.loads(expected['pages'][0][2])[1]
                     assert note['text'] == final_note and note['color'] == 'pink', note
                     assert (note['x'],note['y'],note['width'],note['height']) == (336,48,264,264)
+                    stamp = json.loads(expected['pages'][0][2])[2]
+                    assert stamp['stamp'] == 'moon', stamp
+                    assert (stamp['x'],stamp['y'],stamp['width'],stamp['height']) == (600,48,208,208)
                 else:
                     assert state() == expected
                 reports.append({"nativeRun": run, "checks": "passed", "pages": len(expected["pages"]),
@@ -229,5 +269,5 @@ with tempfile.TemporaryDirectory(prefix="suki-stage4-", dir=OUT) as temporary:
                     except subprocess.TimeoutExpired:
                         process.kill()
                         process.wait()
-    (OUT / "stage4-native-results.json").write_text(json.dumps(reports, indent=2))
+    (OUT / "stage5-native-results.json").write_text(json.dumps(reports, indent=2))
     print(json.dumps(reports, ensure_ascii=False))

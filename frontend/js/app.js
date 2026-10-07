@@ -3,6 +3,7 @@ import { nativeStorage } from "./storage.js";
 import { createStore } from "./store.js";
 import { createEditor } from "./editor.js";
 import { isEditableElement } from "./elements.js";
+import { STAMPS } from "./stamps.js";
 
 const workspace = document.querySelector("#workspace");
 const page = document.querySelector("#journal-page");
@@ -16,6 +17,9 @@ const reloadButton = document.querySelector("#reload-journal");
 const reloadDialog = document.querySelector("#reload-dialog");
 const textTool = document.querySelector("#tool-text");
 const postitTool = document.querySelector("#tool-postit");
+const stampTool = document.querySelector("#tool-stamp");
+const stampPicker = document.querySelector("#stamp-picker");
+let chosenStamp = "flower";
 const undoButton = document.querySelector("#undo");
 const redoButton = document.querySelector("#redo");
 let closing = false;
@@ -24,13 +28,47 @@ let lastState = { journal: null, phase: "loading", error: "" };
 let store;
 const editor = createEditor({ paper: page, workspace, getStore: () => store,
   onPlacement(type) {
-    for (const [tool, name] of [[textTool, "text"], [postitTool, "postit"]]) {
+    for (const [tool, name] of [[textTool, "text"], [postitTool, "postit"], [stampTool, "stamp"]]) {
       tool.classList.toggle("is-active", type === name);
       tool.setAttribute("aria-pressed", String(type === name));
     }
+    stampTool.setAttribute("aria-expanded", String(type === "stamp"));
     document.querySelector("#text-tool-help").hidden = type !== "text";
     document.querySelector("#postit-tool-help").hidden = type !== "postit";
+    stampPicker.hidden = type !== "stamp";
   } });
+
+for (const stamp of STAMPS) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "stamp-choice";
+  button.dataset.stamp = stamp.value;
+  button.disabled = true;
+  button.setAttribute("aria-label", `Elegir sellito: ${stamp.label}`);
+  button.setAttribute("aria-pressed", String(stamp.value === chosenStamp));
+  const image = document.createElement("img");
+  image.src = stamp.src;
+  image.alt = "";
+  image.width = image.height = 42;
+  const label = document.createElement("span");
+  label.textContent = stamp.label;
+  button.append(image, label);
+  button.addEventListener("click", () => {
+    editor.finish();
+    if (!editor.chooseStamp(stamp.value)) return;
+    chosenStamp = stamp.value;
+    for (const choice of stampPicker.querySelectorAll("button")) {
+      choice.setAttribute("aria-pressed", String(choice.dataset.stamp === chosenStamp));
+    }
+  });
+  document.querySelector("#stamp-options").append(button);
+}
+stampPicker.addEventListener("keydown", event => {
+  if (event.key !== "Escape") return;
+  event.preventDefault();
+  editor.setPlacement(null);
+  stampTool.focus({ preventScroll: true });
+});
 
 function revealActivePage() {
   const button = navigation.querySelector('[aria-current="page"]');
@@ -51,6 +89,8 @@ function render(state) {
   const active = journal?.pages.find(item => item.id === journal.activePageId);
   textTool.disabled = !ready;
   postitTool.disabled = !ready;
+  stampTool.disabled = !ready;
+  for (const choice of stampPicker.querySelectorAll("button")) choice.disabled = !ready;
   undoButton.disabled = !ready || !state.canUndo;
   redoButton.disabled = !ready || !state.canRedo;
   status.textContent = closing ? "Cerrando…" : {
@@ -72,8 +112,9 @@ function render(state) {
     (phase === "error" ? "Journal no disponible" : "Cargando journal…");
   const texts = active?.elements.filter(element => element.type === "text").length || 0;
   const postits = active?.elements.filter(element => element.type === "postit").length || 0;
+  const stamps = active?.elements.filter(element => element.type === "stamp").length || 0;
   const counts = [texts ? `${texts} ${texts === 1 ? "texto" : "textos"}` : "",
-    postits ? `${postits} post-it` : ""].filter(Boolean);
+    postits ? `${postits} post-it` : "", stamps ? `${stamps} ${stamps === 1 ? "sellito" : "sellitos"}` : ""].filter(Boolean);
   document.querySelector("#page-subtitle").textContent = active
     ? (counts.join(" · ") || "lienzo en blanco") : "";
   document.querySelector("#unknown-elements").hidden = !active?.elements.some(element => !isEditableElement(element));
@@ -139,7 +180,7 @@ try {
     editor.finish();
     store.update(current => addPage(current, crypto.randomUUID()));
   });
-  for (const [tool, type] of [[textTool, "text"], [postitTool, "postit"]]) {
+  for (const [tool, type] of [[textTool, "text"], [postitTool, "postit"], [stampTool, "stamp"]]) {
     tool.addEventListener("click", () => { editor.finish(); editor.togglePlacement(type); });
   }
   function history(action) {

@@ -21,7 +21,7 @@ export function validateJournal(journal) {
     for (const element of page.elements) {
       if (!isEditableElement(element)) continue;
       validateElement(element);
-      if (elementIds.has(element.id)) throw new Error("Hay textos o post-it con identificadores repetidos.");
+      if (elementIds.has(element.id)) throw new Error("Hay elementos con identificadores repetidos.");
       elementIds.add(element.id);
     }
   }
