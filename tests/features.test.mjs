@@ -2,7 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { renamePage, renameJournal, deletePage, addPage, documentSignature, validateJournal } from "../frontend/js/journal.js";
 import { createText, createPostit, createWashi, createDrawing, insertElement, formatElementText, editElementText,
-  styleDecoration, resizeElement, deleteElement, createCalendar, changeCalendarPeriod, highlightCalendarDay } from "../frontend/js/elements.js";
+  styleDecoration, resizeElement, moveElement, deleteElement, createCalendar, changeCalendarPeriod, highlightCalendarDay,
+  createDrawingFromStrokes, validateElement } from "../frontend/js/elements.js";
 import { createStore } from "../frontend/js/store.js";
 import { formattedSegments, rebaseMarks, toggleMarks, validateMarks } from "../frontend/js/formatting.js";
 
@@ -189,4 +190,49 @@ test("new colors support tape creation/editing, text and calendar history and sa
   assert.deepEqual(latest.journal.pages[0].elements[0].marks.map(mark=>mark.color),["mint","cyan","blue","violet"]);
   assert.deepEqual(latest.journal.pages[0].elements[2].dayHighlights.map(mark=>mark.color),["mint","cyan","blue","violet"]);
   assert.throws(()=>createWashi("bad",24,24,"unknown"));
+});
+
+test("a confirmed drawing groups separate styled strokes, moves/resizes and persists as one history action", async () => {
+  const drawing = createDrawingFromStrokes("group", [
+    {color:"lilac",lineWidth:6,points:[[100,200],[150,240],[210,200]]},
+    {color:"ink",lineWidth:3,points:[[100,280],[180,320],[230,280]]},
+    {color:"olive",lineWidth:1,points:[[200,250]]},
+  ]);
+  assert.equal(drawing.strokes.length,3);
+  assert.equal(drawing.points,undefined);
+  assert.deepEqual(drawing.strokes[2].points[0],drawing.strokes[2].points[1]);
+  let saved = initial(), latest;
+  const storage = {load:async()=>structuredClone(saved),save:async journal=>{
+    saved={...structuredClone(journal),revision:journal.revision+1};return saved.revision;
+  }};
+  const store=createStore(storage,state=>{latest=state;});
+  await store.load();
+  store.update(journal=>insertElement(journal,"first",drawing));
+  store.undo();
+  assert.equal(latest.journal.pages[0].elements.length,2);
+  store.redo();
+  const transformed=resizeElement(moveElement(latest.journal,"first","group",200,300),"first","group",300,260);
+  assert.deepEqual(transformed.pages[0].elements[2].strokes,drawing.strokes);
+  store.update(()=>transformed);
+  await store.flush();
+  const expected=structuredClone(latest.journal.pages);
+  await createStore(storage,state=>{latest=state;}).load();
+  assert.deepEqual(latest.journal.pages,expected);
+  const recolored=styleDecoration(latest.journal,"first","group",{color:"salmon",lineWidth:12});
+  assert.ok(recolored.pages[0].elements[2].strokes.every(stroke=>stroke.color==="salmon" && stroke.lineWidth===12));
+  validateElement(createDrawing("legacy",[[100,100],[200,200]],"ink",3));
+});
+
+test("grouped drawings reject ambiguous paths, malformed strokes and excessive total points", () => {
+  const drawing=createDrawingFromStrokes("group",[{color:"ink",lineWidth:3,points:[[0,0],[100,100]]}]);
+  for (const strokes of [null,[],[null],[{color:"bad",lineWidth:3,points:[[0,0],[1,1]]}],
+    [{color:"ink",lineWidth:13,points:[[0,0],[1,1]]}],
+    [{color:"ink",lineWidth:3,points:[[0,0],[1,2]]}]]) {
+    assert.throws(()=>validateElement({...drawing,strokes}));
+  }
+  assert.throws(()=>validateElement({...drawing,points:[[0,0],[1,1]]}));
+  assert.throws(()=>createDrawingFromStrokes("bad",[{color:"ink",lineWidth:3,points:[[NaN,0]]}]));
+  const stroke={color:"ink",lineWidth:3,points:Array.from({length:4096},()=>[0,0])};
+  validateElement({...drawing,strokes:Array.from({length:16},()=>stroke)});
+  assert.throws(()=>validateElement({...drawing,strokes:Array.from({length:17},()=>stroke)}));
 });

@@ -20,6 +20,7 @@ La interfaz usa HTML, CSS y JavaScript dentro de Tauri 2, con guardado en SQLite
 - [Compilar el ejecutable](#compilar-el-ejecutable)
 - [Dónde se guardan tus páginas](#dónde-se-guardan-tus-páginas)
 - [Estado del proyecto](#estado-del-proyecto)
+- [Desarrollo con IA](#desarrollo-con-ia)
 
 ## Qué podés hacer
 
@@ -30,7 +31,7 @@ La interfaz usa HTML, CSS y JavaScript dentro de Tauri 2, con guardado en SQLite
 | Sellitos | Decorar con Flor, Brote, Estrella, Corazón, Arcoíris y Luna. |
 | Calendario | Colocar un mes y año, con semanas de lunes a domingo. |
 | Washi tape | Pegar cintas en ocho colores con rayas, puntos o cuadrícula. |
-| Dibujo | Dibujar trazos a mano alzada. |
+| Dibujo | Dibujar varios trazos en un panel y confirmarlos como un único elemento. |
 | Subrayado | Subrayar una selección de texto o post-it. |
 | Remarcado | Destacar frases y días del calendario en ocho colores. |
 
@@ -131,3 +132,9 @@ y anotaciones dentro de las celdas quedan pendientes.
 
 Encontrás los comandos, los resultados y el alcance de las verificaciones en
 [Desarrollo y pruebas](docs/desarrollo.md#pruebas).
+
+## Desarrollo con IA
+
+Desarrollé este proyecto con la asistencia de **Codex, una IA de OpenAI**, para
+escribir y revisar código, preparar documentación y realizar pruebas. La idea,
+la dirección del proyecto y las decisiones finales estuvieron a mi cargo.

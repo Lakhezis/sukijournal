@@ -43,6 +43,27 @@ Washi tape usa los mismos ocho colores, tanto desde la herramienta como desde
 el selector de una cinta existente. Los cuatro tonos agregados son Menta
 (`#caffbf`), Turquesa (`#9bf6ff`), Celeste (`#a0c4ff`) y Violeta (`#bdb2ff`).
 
+## Dibujo
+
+1. Elegí **Dibujo** y hacé clic en la hoja para abrir el panel. También podés
+   pulsar `Enter` en la hoja.
+2. Dibujá los trazos que quieras dentro del panel. El color y el grosor del
+   selector izquierdo se aplican a los próximos trazos.
+3. Usá las flechas del panel para deshacer o rehacer trazos. `Ctrl+Z` y
+   `Ctrl+Shift+Z` también funcionan mientras estás dibujando.
+4. Cuando termines, pulsá el **tilde verde ✓ Listo**. `Ctrl+Enter` hace lo mismo.
+
+El dibujo se guarda como un único elemento: podés arrastrarlo directamente,
+usar **Mover** o cambiar su tamaño desde la esquina. Todos los trazos se mueven
+y se redimensionan juntos. Los controles del dibujo terminado permiten cambiar
+el color y el grosor de todos sus trazos.
+
+Hasta confirmar, los trazos quedan en el panel. **Cancelar**, `Escape`, cambiar
+de herramienta o de página descartan ese dibujo pendiente. Un panel vacío no
+se puede confirmar. Deshacer después de confirmar quita el dibujo completo;
+Rehacer lo recupera con todos sus trazos. Se conserva al guardar y reabrir,
+incluidos los dibujos creados en versiones anteriores.
+
 ## Post-it
 
 Elegí **Post-it**, hacé clic en la hoja y escribí tu nota. El selector al pie

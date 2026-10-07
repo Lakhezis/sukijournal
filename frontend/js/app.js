@@ -270,6 +270,7 @@ try {
   });
   function history(action) {
     if (closing || busy || !lastState.journal || lastState.phase === "error" || lastState.phase === "loading") return;
+    if (editor.drawingHistory(action)) return;
     editor.finish();
     store[action]();
   }

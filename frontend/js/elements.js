@@ -3,7 +3,7 @@ import { findStamp } from "./stamps.js";
 import { validPeriod, validDay, validateDayHighlights } from "./calendar.js";
 import { validateMarks, rebaseMarks, toggleMarks } from "./formatting.js";
 import { validHighlightColor } from "./formatting.js";
-import { WASHI_COLORS, WASHI_PATTERNS, validDrawing, POINT_LIMIT } from "./decorations.js";
+import { WASHI_COLORS, WASHI_PATTERNS, DRAWING_COLORS, validDrawing, POINT_LIMIT, DRAWING_POINT_LIMIT } from "./decorations.js";
 export const PAPER = Object.freeze({ width: 852, height: 1078 });
 export const TEXT_LIMIT = 10_000;
 export const MIN_TEXT_SIZE = Object.freeze({ width: 120, height: 88 });
@@ -83,13 +83,41 @@ export function createDrawing(id, points, color = "ink", lineWidth = 3) {
   return validateElement({ type: "drawing", id, x, y, width, height, points: normalized, color, lineWidth });
 }
 
+export function createDrawingFromStrokes(id, strokes) {
+  if (!Array.isArray(strokes) || !strokes.length || strokes.some(stroke => !stroke ||
+      !DRAWING_COLORS.some(color => color.value === stroke.color) || !Number.isFinite(stroke.lineWidth) ||
+      stroke.lineWidth < 1 || stroke.lineWidth > 12 || !Array.isArray(stroke.points) ||
+      !stroke.points.length || stroke.points.length > POINT_LIMIT ||
+      stroke.points.some(point => !Array.isArray(point) || point.length !== 2 || !point.every(Number.isFinite))) ||
+      strokes.reduce((count, stroke) => count + Math.max(2, stroke.points.length), 0) > DRAWING_POINT_LIMIT) {
+    throw new Error("Los trazos del dibujo no son válidos.");
+  }
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const stroke of strokes) for (const [px, py] of stroke.points) {
+    minX = Math.min(minX, px); minY = Math.min(minY, py);
+    maxX = Math.max(maxX, px); maxY = Math.max(maxY, py);
+  }
+  const x = clamp(minX - 14, 0, PAPER.width - MIN_DRAWING_SIZE.width);
+  const y = clamp(minY - 28, 0, PAPER.height - MIN_DRAWING_SIZE.height);
+  const width = clamp(maxX - x + 14, MIN_DRAWING_SIZE.width, PAPER.width - x);
+  const height = clamp(maxY - y + 14, MIN_DRAWING_SIZE.height, PAPER.height - y);
+  const normalized = strokes.map(stroke => {
+    const points = stroke.points.map(([px, py]) => [clamp((px - x - 14) / (width - 28), 0, 1), clamp((py - y - 28) / (height - 42), 0, 1)]);
+    if (points.length === 1) points.push([...points[0]]);
+    return { color: stroke.color, lineWidth: stroke.lineWidth, points };
+  });
+  return validateElement({ type: "drawing", id, x, y, width, height,
+    color: normalized[0].color, lineWidth: normalized[0].lineWidth, strokes: normalized });
+}
+
 export function styleDecoration(journal, pageId, id, changes) {
   return changeElement(journal, pageId, id, element => {
     if (!["washi", "drawing"].includes(element.type) || Object.keys(changes).some(key =>
       !(element.type === "washi" ? ["color", "pattern"] : ["color", "lineWidth"]).includes(key))) {
       throw new Error("No se puede aplicar ese estilo al elemento.");
     }
-    return { ...element, ...changes };
+    return { ...element, ...changes, ...(element.type === "drawing" && element.strokes
+      ? { strokes: element.strokes.map(stroke => ({ ...stroke, ...changes })) } : {}) };
   });
 }
 

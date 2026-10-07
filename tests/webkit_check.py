@@ -248,6 +248,27 @@ def saved():
     wait_for(lambda: js("document.querySelector('#app-status').textContent") == 'Guardado')
 
 
+def draw_stroke(points, cancel=False):
+    x11.XRaiseWindow(xdisplay, window.get_window().get_xid())
+    x11.XSetInputFocus(xdisplay, window.get_window().get_xid(), 1, 0)
+    js("document.querySelector('.drawing-pad').scrollIntoView({block:'center',inline:'nearest'}); 'ok'")
+    pause()
+    rect = json.loads(js("JSON.stringify((()=>{const r=document.querySelector('.drawing-pad').getBoundingClientRect();return [r.left,r.top,r.width,r.height]})())"))
+    root_x, root_y = window.get_window().get_origin()[-2:]
+    offset_x, offset_y = view.translate_coordinates(window, 0, 0)[-2:]
+    for index, (px,py) in enumerate(points):
+        xtest.XTestFakeMotionEvent(xdisplay,-1,round(root_x+offset_x+rect[0]+px*rect[2]),round(root_y+offset_y+rect[1]+py*rect[3]),0)
+        if index == 0:
+            xtest.XTestFakeButtonEvent(xdisplay,1,1,0)
+        x11.XFlush(xdisplay)
+        pause()
+    if cancel:
+        js("document.querySelector('.drawing-pad').dispatchEvent(new PointerEvent('pointercancel',{pointerId:1})); 'ok'")
+    xtest.XTestFakeButtonEvent(xdisplay,1,0,0)
+    x11.XFlush(xdisplay)
+    pause()
+
+
 def click_blank_paper():
     # Click real: incluye pointerdown, blur y select diferido de WebKit.
     js("document.querySelector('#workspace').scrollTo(0,0); 'ok'")
@@ -298,6 +319,10 @@ def place_stamp(stamp, x, y):
 
 def calendar_geometry():
     return json.loads(js("JSON.stringify(JSON.parse(localStorage.getItem('testJournal')).pages.find(p=>p.id===document.querySelector('[aria-current=page]').dataset.pageId).elements.find(e=>e.type==='calendar'))"))
+
+
+def drawing_geometry():
+    return json.loads(js("JSON.stringify(JSON.parse(localStorage.getItem('testJournal')).pages.find(p=>p.id===document.querySelector('[aria-current=page]').dataset.pageId).elements.find(e=>e.type==='drawing'))"))
 
 
 def place_calendar(year, month, x=24, y=500):
@@ -1030,46 +1055,87 @@ try:
     saved()
     drag('.washi-element .text-resize', 24, 0)
     saved()
-    js("document.querySelector('#tool-drawing').click(); document.querySelector('#drawing-color').value='lilac'; document.querySelector('#drawing-width').value='6'; document.querySelector('#drawing-width').dispatchEvent(new Event('change')); document.querySelector('#workspace').scrollTo(0,0); 'ok'")
-    pause()
-    paper_rect = json.loads(js("JSON.stringify((()=>{const r=document.querySelector('#journal-page').getBoundingClientRect();return [r.left+1,r.top+1]})())"))
-    origin = window.get_window().get_origin()[-2:]
-    # Mantener todo el trazo dentro de la hoja visible, también a 900 × 640,
-    # en el espacio libre entre el post-it y el sellito.
-    points = [(450,275),(485,300),(550,275)]
-    for px, py in points:
-        assert js(f"String(document.elementFromPoint({paper_rect[0]+px},{paper_rect[1]+py})?.id)") == 'journal-page'
-    for index,(px,py) in enumerate(points):
-        xtest.XTestFakeMotionEvent(xdisplay,-1,round(origin[0]+paper_rect[0]+px),round(origin[1]+paper_rect[1]+py),0)
-        if index == 0:
-            xtest.XTestFakeButtonEvent(xdisplay,1,1,0)
-        x11.XFlush(xdisplay)
-        pause()
-    xtest.XTestFakeButtonEvent(xdisplay,1,0,0)
-    x11.XFlush(xdisplay)
-    pause()
+    before_drawing_revision = json.loads(js("localStorage.getItem('testJournal')"))['revision']
+    js("document.querySelector('#tool-drawing').click(); document.querySelector('#drawing-color').value='lilac'; document.querySelector('#drawing-width').value='6'; document.querySelector('#drawing-width').dispatchEvent(new Event('change')); document.querySelector('#journal-page').dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true})); 'ok'")
+    assert js("String(document.querySelectorAll('.drawing-panel').length)") == '1'
+    assert js("String(document.querySelector('.drawing-confirm').disabled)") == 'true'
+    draw_stroke([(.1,.2),(.5,.4),(.85,.2)])
+    js("document.querySelector('#drawing-color').value='ink'; document.querySelector('#drawing-width').value='3'; document.querySelector('#drawing-width').dispatchEvent(new Event('change')); 'ok'")
+    draw_stroke([(.1,.65),(.5,.85),(.85,.65)])
+    assert js("String(document.querySelectorAll('.drawing-pad path').length)") == '2'
+    assert js("String(document.querySelectorAll('.drawing-element').length)") == '0'
+    assert json.loads(js("localStorage.getItem('testJournal')"))['revision'] == before_drawing_revision
+    js("document.querySelector('.drawing-undo').click(); 'ok'")
+    assert js("String(document.querySelectorAll('.drawing-pad path').length)") == '1'
+    js("document.querySelector('.drawing-redo').click(); 'ok'")
+    assert js("String(document.querySelectorAll('.drawing-pad path').length)") == '2'
+    draw_stroke([(.2,.1),(.4,.1)],cancel=True)
+    assert js("String(document.querySelectorAll('.drawing-pad path').length)") == '2'
+    snapshot('drawing-panel-webkit.png')
+    drag('.drawing-confirm',0,0)
     saved()
-    assert js("String(document.querySelectorAll('.drawing-element').length)") == '1', js('JSON.stringify(window.pointerTrace.slice(-12))')
+    assert js("String(document.querySelectorAll('.drawing-panel').length)") == '0'
+    assert js("String(document.querySelectorAll('.drawing-element').length)") == '1'
+    assert js("String(document.querySelectorAll('.drawing-artwork path').length)") == '2'
     assert js("String(document.querySelector('.drawing-artwork path').getAttribute('d').includes('L'))") == 'true'
     assert js("document.querySelector('.drawing-artwork path').getAttribute('stroke')") == '#927bba'
     assert js("document.querySelector('.drawing-artwork path').getAttribute('stroke-width')") == '6'
-    assert js("document.querySelector('#tool-drawing').getAttribute('aria-pressed')") == 'true'
-    # Cancelar otro trazo antes de soltar no agrega un elemento ni historial.
-    xtest.XTestFakeMotionEvent(xdisplay,-1,round(origin[0]+paper_rect[0]+600),round(origin[1]+paper_rect[1]+280),0)
-    xtest.XTestFakeButtonEvent(xdisplay,1,1,0)
-    x11.XFlush(xdisplay)
-    pause()
-    js("document.querySelector('#journal-page').dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true})); 'ok'")
-    xtest.XTestFakeButtonEvent(xdisplay,1,0,0)
-    x11.XFlush(xdisplay)
-    pause()
-    assert js("String(document.querySelectorAll('.drawing-element').length)") == '1'
-    assert js("String(document.querySelectorAll('.drawing-preview').length)") == '0'
-    drag('.drawing-element .text-move', 24, 24)
+    assert js("document.querySelectorAll('.drawing-artwork path')[1].getAttribute('stroke')") == '#0d2426'
+    assert js("document.querySelectorAll('.drawing-artwork path')[1].getAttribute('stroke-width')") == '3'
+    assert js("document.querySelector('#tool-drawing').getAttribute('aria-pressed')") == 'false'
+    js("document.querySelector('#undo').click(); 'ok'")
     saved()
+    assert js("String(document.querySelectorAll('.drawing-element').length)") == '0'
+    js("document.querySelector('#redo').click(); 'ok'")
+    saved()
+    assert js("String(document.querySelectorAll('.drawing-artwork path').length)") == '2'
+    original_strokes = js("JSON.stringify(JSON.parse(localStorage.getItem('testJournal')).pages.find(p=>p.id===document.querySelector('[aria-current=page]').dataset.pageId).elements.find(e=>e.type==='drawing').strokes)")
+    before_move = drawing_geometry()
+    drag('.drawing-element', 24, 24)
+    saved()
+    after_move = drawing_geometry()
+    assert after_move['x'] == min(before_move['x'] + 24,852-before_move['width'])
+    assert after_move['y'] == min(before_move['y'] + 24,1078-before_move['height'])
     drag('.drawing-element .text-resize', 24, 24)
     saved()
-    reports.append({'check':'washi color/design, real drag and resize; freehand path, repeated drawing mode and cancellation', 'result':'passed'})
+    after_resize = drawing_geometry()
+    assert after_resize['width'] == min(after_move['width'] + 24,852-after_move['x'])
+    assert after_resize['height'] == min(after_move['height'] + 24,1078-after_move['y'])
+    assert js("JSON.stringify(JSON.parse(localStorage.getItem('testJournal')).pages.find(p=>p.id===document.querySelector('[aria-current=page]').dataset.pageId).elements.find(e=>e.type==='drawing').strokes)") == original_strokes
+    loaded.clear()
+    view.reload()
+    wait_for(lambda: loaded)
+    saved()
+    assert js("String(document.querySelectorAll('.drawing-artwork path').length)") == '2'
+    reports.append({'check':'drawing panel, separate styled strokes, green confirmation, single history action, direct drag, resize and reload', 'result':'passed'})
+
+    before_cancel_revision = json.loads(js("localStorage.getItem('testJournal')"))['revision']
+    js("document.querySelector('#tool-drawing').click(); document.querySelector('#journal-page').dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true})); 'ok'")
+    draw_stroke([(.2,.3),(.7,.5)])
+    js("document.querySelector('.drawing-pad').dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true})); 'ok'")
+    assert js("String(document.querySelectorAll('.drawing-panel').length)") == '0'
+    assert js("String(document.querySelectorAll('.drawing-element').length)") == '1'
+    assert json.loads(js("localStorage.getItem('testJournal')"))['revision'] == before_cancel_revision
+    js("document.querySelector('#tool-drawing').click(); document.querySelector('#journal-page').dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true})); 'ok'")
+    draw_stroke([(.2,.3),(.7,.5)])
+    js("document.querySelector('#tool-underline').click(); 'ok'")
+    assert js("String(document.querySelectorAll('.drawing-panel').length)") == '0'
+    assert json.loads(js("localStorage.getItem('testJournal')"))['revision'] == before_cancel_revision
+    reports.append({'check':'empty drawing confirmation disabled, interrupted stroke, Escape and changing tools discard pending drawings', 'result':'passed'})
+
+    js("document.querySelector('#tool-drawing').click(); document.querySelector('#journal-page').dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true})); 'ok'")
+    draw_stroke([(.2,.3),(.7,.5)])
+    js("window.failSave=true; document.querySelector('.drawing-pad').dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',ctrlKey:true,bubbles:true})); 'ok'")
+    wait_for(lambda: js("document.querySelector('#app-status').textContent") == 'Sin guardar')
+    assert js("String(document.querySelectorAll('.drawing-element').length)") == '2'
+    assert js("String(document.querySelectorAll('.drawing-panel').length)") == '0'
+    js("window.failSave=false; document.querySelector('#retry-storage').click(); 'ok'")
+    saved()
+    js("document.querySelector('#undo').click(); 'ok'")
+    saved()
+    assert js("String(document.querySelectorAll('.drawing-element').length)") == '1'
+    assert js("String(document.querySelectorAll('.drawing-artwork path').length)") == '2'
+    reports.append({'check':'Ctrl+Enter confirms all strokes; failed drawing save retains the group, retries and supports undo', 'result':'passed'})
 
     js("document.querySelector('#rename-page').click(); document.querySelector('#name-input').value='Mi semana 🌱'; document.querySelector('#name-input').dispatchEvent(new Event('input')); document.querySelector('#name-dialog button[value=apply]').click(); 'ok'")
     saved()

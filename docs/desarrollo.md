@@ -135,7 +135,8 @@ Primero compilá la versión release con los cambios actuales. Después ejecutá
 La prueba crea un journal temporal, agrega páginas, texto, un post-it, un sellito
 y un calendario. Cambia color, dibujo y período, mueve y redimensiona con teclado,
 prueba deshacer/rehacer, cierra con cambios pendientes y vuelve a abrir.
-También aplica subrayado y remarcado, coloca washi tape y un dibujo con teclado,
+También aplica subrayado y remarcado, coloca washi tape, abre un panel de dibujo
+y hace dos trazos reales que confirma con el tilde verde,
 renombra y elimina una página y la recupera con Deshacer. Usa los diálogos GTK
 reales para cancelar un guardado, guardar dos journals separados y abrir el
 primero, comprobando que conserva sus elementos y formato.
@@ -249,3 +250,26 @@ Verificado el **7 de octubre de 2026**: 19 pruebas Rust, 36 JavaScript en seis
 suites, 31 grupos de interfaz sin errores de carga ni de CSP y dos ejecuciones
 del release actualizado. Los resultados quedaron en
 `verification/expanded-colors-*-results.json`.
+
+## Dibujo con varios trazos y confirmación
+
+Dibujo abre un panel dentro de la hoja. Los trazos conservan su color y grosor
+y se acumulan en un borrador; su historial es independiente del journal.
+El tilde verde o `Ctrl+Enter` inserta un único elemento con todos los trazos,
+una acción de historial y un autoguardado. Cancelar, cambiar de herramienta o
+de página descarta el borrador. No se pueden confirmar paneles vacíos.
+
+El elemento terminado admite arrastre directo, Mover y redimensionado. Su campo
+`strokes` contiene puntos normalizados, color y grosor por trazo. Los dibujos
+anteriores con `points` siguen siendo válidos. Cambiar el estilo del elemento
+completo actualiza todos sus trazos. La validación limita cada trazo a 4096 puntos
+y el dibujo a 65.536, y rechaza datos ambiguos que mezclen `points` y `strokes`.
+
+Se comprueban trazos separados, confirmación, cancelación, historial del borrador
+y del elemento, desplazamiento y tamaños exactos, guardado, recarga, recuperación
+ante fallos y compatibilidad con dibujos anteriores.
+
+Verificado el **7 de octubre de 2026**: 21 pruebas Rust, 38 JavaScript en seis
+suites, 33 grupos de interfaz sin errores de carga ni de CSP y dos ejecuciones
+del release actualizado, con confirmación por clic y reapertura del dibujo.
+Los resultados quedaron en `verification/drawing-panel-*-results.json`.

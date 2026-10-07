@@ -78,6 +78,19 @@ def key(keysym):
     time.sleep(0.05)
 
 
+def drawing_stroke(native, points):
+    root_x, root_y, _, _ = geometry(native)
+    for index, (x,y) in enumerate(points):
+        xtest.XTestFakeMotionEvent(display,-1,root_x+x,root_y+y,0)
+        if index == 0:
+            xtest.XTestFakeButtonEvent(display,1,1,0)
+        x11.XFlush(display)
+        time.sleep(0.12)
+    xtest.XTestFakeButtonEvent(display,1,0,0)
+    x11.XFlush(display)
+    time.sleep(0.15)
+
+
 def scroll_top(native, x):
     root_x, root_y, _, _ = geometry(native)
     xtest.XTestFakeMotionEvent(display, -1, root_x + x, root_y + 200, 0)
@@ -393,9 +406,16 @@ with tempfile.TemporaryDirectory(prefix="suki-stage7-", dir=OUT) as temporary:
                     key(0xFF0D)
                     wait_for(lambda: len(json.loads(state()['pages'][0][2])) == 5)
                     assert json.loads(state()['pages'][0][2])[4]['color'] == 'violet'
-                    click_tool(native, 549)  # Dibujo colocado con teclado.
+                    scroll_top(native,900)
+                    click_tool(native, 549)  # Abrir el panel de dibujo con teclado.
                     key(0xFF0D)
+                    drawing_stroke(native,[(400,305),(510,350),(640,305)])
+                    drawing_stroke(native,[(400,390),(510,435),(640,390)])
+                    assert len(json.loads(state()['pages'][0][2])) == 5
+                    screenshot(native,'drawing-panel-native.png')
+                    click(native,650,488)  # Tilde verde: confirmar ambos trazos como un dibujo.
                     wait_for(lambda: len(json.loads(state()['pages'][0][2])) == 6)
+                    assert len(json.loads(state()['pages'][0][2])[5]['strokes']) == 2
 
                     click(native, geometry(native)[2] - 210, geometry(native)[3] - 36)
                     accept_name('Mi semana')
@@ -430,6 +450,7 @@ with tempfile.TemporaryDirectory(prefix="suki-stage7-", dir=OUT) as temporary:
                     assert exported['pages'][0]['elements'][0]['marks'][1]['color'] == 'violet'
                     assert exported['pages'][0]['elements'][3]['dayHighlights'] == [{'year':2100,'month':2,'day':1,'color':'violet'}]
                     assert exported['pages'][0]['elements'][4]['color'] == 'violet'
+                    assert len(exported['pages'][0]['elements'][5]['strokes']) == 2
                     modified_key(ord('n'), modifier=0xFFE3)
                     accept_name('Viajes')
                     wait_for(lambda: state()['journal'][0] == 'Viajes')
@@ -482,6 +503,7 @@ with tempfile.TemporaryDirectory(prefix="suki-stage7-", dir=OUT) as temporary:
                     assert json.loads(expected['pages'][0][2])[4]['type'] == 'washi'
                     assert json.loads(expected['pages'][0][2])[4]['color'] == 'violet'
                     assert json.loads(expected['pages'][0][2])[5]['type'] == 'drawing'
+                    assert len(json.loads(expected['pages'][0][2])[5]['strokes']) == 2
                     assert file_path() == str(first_file)
                 else:
                     assert state() == expected

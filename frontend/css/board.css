@@ -340,7 +340,6 @@
 .postit-element .formatted-text-content { padding: 6px 12px; }
 
 .journal-page.is-placing-washi, .journal-page.is-drawing { cursor: crosshair; }
-.journal-page.is-drawing .text-input { cursor: crosshair; }
 .drawing-artwork {
   position: absolute;
   top: 28px;
@@ -350,7 +349,39 @@
   pointer-events: none;
   overflow: visible;
 }
-.drawing-preview { inset: 0; width: 100%; height: 100%; z-index: 3; }
+.drawing-element { cursor: grab; }
+.drawing-element.is-dragging { cursor: grabbing; }
+.drawing-panel {
+  position: absolute;
+  z-index: 4;
+  width: 360px;
+  height: 300px;
+  padding: 10px;
+  border: 2px solid var(--salmon);
+  border-radius: 12px;
+  background: var(--paper);
+  box-shadow: 0 5px 18px #5c453526;
+}
+.drawing-panel header, .drawing-panel footer { display: flex; align-items: center; gap: 8px; }
+.drawing-panel header { justify-content: space-between; height: 24px; margin-bottom: 6px; font-size: 13px; }
+.drawing-stroke-count { font-size: 11px; color: var(--olive); }
+.drawing-pad {
+  display: block;
+  width: 100%;
+  height: 206px;
+  touch-action: none;
+  cursor: crosshair;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: #fffdfa;
+}
+.drawing-pad path { pointer-events: none; }
+.drawing-panel footer { margin-top: 7px; }
+.drawing-panel button { padding: 5px 8px; border: 1px solid var(--border); border-radius: 7px; background: var(--paper); color: var(--ink); font: inherit; font-size: 12px; cursor: pointer; }
+.drawing-panel .drawing-cancel { margin-left: auto; }
+.drawing-panel .drawing-confirm { color: #fff; background: #377c4d; border-color: #377c4d; font-weight: 800; }
+.drawing-panel .drawing-confirm:enabled:hover { background: #28613a; }
+.drawing-panel button:disabled { opacity: .45; cursor: not-allowed; }
 .washi-artwork {
   --tape-color: #f6cdd7;
   position: absolute;

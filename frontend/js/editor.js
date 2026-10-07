@@ -1,11 +1,12 @@
 import { createText, createPostit, createStamp, insertElement, editElementText, moveElement, resizeElement, deleteElement,
-  colorPostit, createCalendar, changeCalendarPeriod, createWashi, createDrawing, styleDecoration,
+  colorPostit, createCalendar, changeCalendarPeriod, createWashi, createDrawingFromStrokes, styleDecoration,
   formatElementText, highlightCalendarDay, isEditableElement, resizedGeometry, POSTIT_COLORS, PAPER, TEXT_LIMIT } from "./elements.js";
 import { findStamp } from "./stamps.js";
 import { MONTHS, validPeriod } from "./calendar.js";
 import { createCalendarView } from "./calendar-view.js";
 import { createTextView } from "./text-view.js";
-import { drawingArtwork, renderDrawing, styleSelect, WASHI_COLORS, WASHI_PATTERNS, DRAWING_COLORS, POINT_LIMIT } from "./decorations.js";
+import { drawingArtwork, renderDrawing, styleSelect, WASHI_COLORS, WASHI_PATTERNS, DRAWING_COLORS } from "./decorations.js";
+import { createDrawingPanel } from "./drawing-panel.js";
 import { validHighlightColor } from "./formatting.js";
 
 // Vista del editor: los gestos usan coordenadas de la hoja y producen cambios de estado.
@@ -22,7 +23,7 @@ export function createEditor({ paper, workspace, getStore, onPlacement, onFeedba
   let textSelection = null;
   let calendarSelection = null;
   let highlightColor = "yellow";
-  let drawingGesture = null;
+  let drawingPanel = null;
   let washiStyle = { color: "pink", pattern: "stripes" };
   let drawingStyle = { color: "ink", lineWidth: 3 };
   const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
@@ -54,7 +55,7 @@ export function createEditor({ paper, workspace, getStore, onPlacement, onFeedba
   }
 
   function setPlacement(value, { preserveSelection = false } = {}) {
-    if (drawingGesture) endDrawing(false);
+    if (drawingPanel && value !== "drawing") closeDrawingPanel();
     placing = ready && ["text", "postit", "stamp", "calendar", "washi", "drawing", "highlight"].includes(value) ? value : null;
     if (placing !== "highlight" && !preserveSelection) clearFormattingSelection();
     if (placing !== "calendar") calendarPrepared = false;
@@ -108,7 +109,7 @@ export function createEditor({ paper, workspace, getStore, onPlacement, onFeedba
     endGesture(false);
     select(id);
     setPlacement(false);
-    event.currentTarget.focus({ preventScroll: true });
+    (event.currentTarget === entry.node ? entry.move : event.currentTarget).focus({ preventScroll: true });
     event.currentTarget.setPointerCapture(event.pointerId);
     gesture = { id, pageId: model.id, kind, entry, handle: event.currentTarget,
       pointerId: event.pointerId, startX: event.clientX, startY: event.clientY,
@@ -310,15 +311,26 @@ export function createEditor({ paper, workspace, getStore, onPlacement, onFeedba
       handle.addEventListener("lostpointercapture", () => endGesture(false));
       handle.addEventListener("keydown", event => adjustWithKeyboard(event, element.id, kind));
     }
+    if (drawing) {
+      node.addEventListener("pointerdown", event => {
+        if (event.target === node) beginGesture(event, element.id, "move", entry);
+      });
+      node.addEventListener("pointermove", previewGesture);
+      node.addEventListener("pointerup", event => {
+        if (gesture?.pointerId === event.pointerId) { previewGesture(event); endGesture(true); }
+      });
+      node.addEventListener("pointercancel", () => endGesture(false));
+      node.addEventListener("lostpointercapture", () => endGesture(false));
+    }
     return entry;
   }
 
   function render(nextPage, editable) {
     ready = editable;
-    if (!ready) { endGesture(false); endDrawing(false); setPlacement(false); }
+    if (!ready) { endGesture(false); closeDrawingPanel(); setPlacement(false); }
     if (model?.id !== nextPage?.id) {
       endGesture(false);
-      endDrawing(false);
+      closeDrawingPanel();
       model = nextPage;
       const focused = paper.contains(document.activeElement);
       for (const entry of entries.values()) entry.textView?.destroy();
@@ -386,10 +398,10 @@ export function createEditor({ paper, workspace, getStore, onPlacement, onFeedba
   function addAt(x, y) {
     if (!ready || !model) return;
     if (placing === "highlight") return;
+    if (placing === "drawing") { openDrawingPanel(x, y); return; }
     if (placing === "calendar" && !calendarPrepared) return;
     const id = crypto.randomUUID();
     const element = placing === "washi" ? createWashi(id, x, y, washiStyle.color, washiStyle.pattern)
-      : placing === "drawing" ? createDrawing(id, [[x + 14, y + 28], [x + 108, y + 80]], drawingStyle.color, drawingStyle.lineWidth)
       : placing === "calendar" ? createCalendar(id, calendarPeriod.year, calendarPeriod.month, x, y)
       : placing === "stamp" ? createStamp(id, stampValue, x, y)
       : placing === "postit" ? createPostit(id, x, y) : createText(id, x, y);
@@ -406,7 +418,6 @@ export function createEditor({ paper, workspace, getStore, onPlacement, onFeedba
     clearFormattingSelection();
     select(null);
     if (!placing) return;
-    if (placing === "drawing") return;
     const rect = paper.getBoundingClientRect();
     addAt(event.clientX - rect.left - paper.clientLeft, event.clientY - rect.top - paper.clientTop);
   });
@@ -415,7 +426,7 @@ export function createEditor({ paper, workspace, getStore, onPlacement, onFeedba
     if (event.key === "Escape") {
       event.preventDefault();
       endGesture(false);
-      endDrawing(false);
+      closeDrawingPanel();
       setPlacement(false);
       select(null);
       paper.focus({ preventScroll: true });
@@ -431,50 +442,41 @@ export function createEditor({ paper, workspace, getStore, onPlacement, onFeedba
     }
   });
 
-  function paperPoint(event) {
-    const rect = paper.getBoundingClientRect();
-    return [clamp(event.clientX - rect.left - paper.clientLeft, 0, PAPER.width),
-      clamp(event.clientY - rect.top - paper.clientTop, 0, PAPER.height)];
+  function closeDrawingPanel() {
+    const panel = drawingPanel;
+    drawingPanel = null;
+    panel?.destroy();
   }
-  function sampleDrawing(event) {
-    if (!drawingGesture || drawingGesture.pointerId !== event.pointerId) return;
-    const point = paperPoint(event), last = drawingGesture.points.at(-1);
-    if (Math.hypot(point[0] - last[0], point[1] - last[1]) < 1 || drawingGesture.points.length >= POINT_LIMIT) return;
-    drawingGesture.points.push(point);
-    drawingGesture.preview.firstElementChild.setAttribute("d", drawingGesture.points.map(([x, y], i) => `${i ? "L" : "M"}${x},${y}`).join(" "));
+  function openDrawingPanel(x, y) {
+    if (drawingPanel) { drawingPanel.canvas.focus({ preventScroll: true }); return; }
+    const pageId = model.id;
+    const cancel = () => { setPlacement(null); paper.focus({ preventScroll: true }); };
+    drawingPanel = createDrawingPanel({ getStyle: () => drawingStyle, onCancel: cancel, onFeedback,
+      onConfirm(strokes, canvasRect) {
+        if (!ready || model?.id !== pageId) return;
+        const rect = paper.getBoundingClientRect();
+        const originX = canvasRect.left - rect.left - paper.clientLeft;
+        const originY = canvasRect.top - rect.top - paper.clientTop;
+        const element = createDrawingFromStrokes(crypto.randomUUID(), strokes.map(stroke => ({
+          ...stroke, points: stroke.points.map(([px, py]) => [originX + px * canvasRect.width, originY + py * canvasRect.height]),
+        })));
+        // El panel entero produce una única acción de historial y autoguardado.
+        closeDrawingPanel();
+        getStore().endGroup();
+        if (getStore().update(journal => insertElement(journal, pageId, element))) {
+          setPlacement(null);
+          select(element.id);
+          entries.get(element.id).move.focus({ preventScroll: true });
+          onFeedback("Dibujo confirmado. Podés arrastrarlo o usar Mover.");
+        }
+      },
+    });
+    drawingPanel.node.style.left = `${clamp(x, 0, PAPER.width - 360)}px`;
+    drawingPanel.node.style.top = `${clamp(y, 0, PAPER.height - 300)}px`;
+    paper.append(drawingPanel.node);
+    drawingPanel.node.scrollIntoView({ block: "nearest", inline: "nearest" });
+    drawingPanel.canvas.focus({ preventScroll: true });
   }
-  function endDrawing(commit) {
-    if (!drawingGesture) return;
-    const current = drawingGesture;
-    drawingGesture = null;
-    current.preview.remove();
-    if (paper.hasPointerCapture(current.pointerId)) paper.releasePointerCapture(current.pointerId);
-    if (commit && ready && model?.id === current.pageId) {
-      const element = createDrawing(crypto.randomUUID(), current.points, drawingStyle.color, drawingStyle.lineWidth);
-      if (getStore().update(journal => insertElement(journal, current.pageId, element))) select(element.id);
-    }
-  }
-  paper.addEventListener("pointerdown", event => {
-    if (!ready || placing !== "drawing" || event.button !== 0 ||
-      event.target.closest(".text-controls, .text-resize, .decoration-style, .calendar-period")) return;
-    event.preventDefault();
-    event.stopPropagation();
-    endDrawing(false);
-    const preview = drawingArtwork();
-    preview.classList.add("drawing-preview");
-    preview.setAttribute("viewBox", `0 0 ${PAPER.width} ${PAPER.height}`);
-    preview.firstElementChild.setAttribute("stroke", DRAWING_COLORS.find(color => color.value === drawingStyle.color).css);
-    preview.firstElementChild.setAttribute("stroke-width", drawingStyle.lineWidth);
-    paper.append(preview);
-    paper.setPointerCapture(event.pointerId);
-    drawingGesture = { pageId: model.id, pointerId: event.pointerId, points: [paperPoint(event)], preview };
-    getStore().endGroup();
-  }, true);
-  paper.addEventListener("pointermove", sampleDrawing);
-  paper.addEventListener("pointerup", event => {
-    if (drawingGesture?.pointerId === event.pointerId) { sampleDrawing(event); endDrawing(true); }
-  });
-  for (const type of ["pointercancel", "lostpointercapture"]) paper.addEventListener(type, () => endDrawing(false));
 
   function formatSelection(kind, toggle = true, feedback = true) {
       const range = textSelection;
@@ -504,6 +506,11 @@ export function createEditor({ paper, workspace, getStore, onPlacement, onFeedba
   }
 
   return { render, setPlacement, formatSelection,
+    drawingHistory(action) {
+      if (!drawingPanel) return false;
+      drawingPanel[action]();
+      return true;
+    },
     setHighlightColor(color) {
       if (!validHighlightColor(color)) return;
       highlightColor = color;
@@ -537,7 +544,7 @@ export function createEditor({ paper, workspace, getStore, onPlacement, onFeedba
     },
     finish() {
       endGesture(true);
-      endDrawing(true);
+      drawingPanel?.finish();
       for (const [id, entry] of entries) { commitText(id); entry.calendarView?.finish(); }
       getStore().endGroup();
     },

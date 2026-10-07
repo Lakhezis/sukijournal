@@ -138,32 +138,29 @@ impl Journal {
                         return Err("Hay una cinta con color o diseño inválido.".into());
                     }
                 } else if kind == "drawing" {
-                    let points = element
-                        .get("points")
-                        .and_then(|v| v.as_array())
-                        .ok_or("Hay un dibujo sin puntos válidos.")?;
-                    let line_width = element
-                        .get("lineWidth")
-                        .and_then(|v| v.as_f64())
-                        .ok_or("Hay un dibujo con grosor inválido.")?;
-                    if !matches!(
-                        element.get("color").and_then(|v| v.as_str()),
-                        Some("ink" | "salmon" | "olive" | "lilac")
-                    ) || !(1.0..=12.0).contains(&line_width)
-                        || points.len() < 2
-                        || points.len() > 4096
-                        || points.iter().any(|point| {
-                            point.as_array().is_none_or(|values| {
-                                values.len() != 2
-                                    || values.iter().any(|v| {
-                                        v.as_f64().is_none_or(|number| {
-                                            !number.is_finite() || !(0.0..=1.0).contains(&number)
-                                        })
-                                    })
-                            })
-                        })
-                    {
+                    if !valid_drawing_style(element) {
                         return Err("Hay un dibujo con datos inválidos.".into());
+                    }
+                    if let Some(strokes) = element.get("strokes") {
+                        let strokes = strokes
+                            .as_array()
+                            .filter(|strokes| !strokes.is_empty())
+                            .ok_or("Hay un dibujo sin trazos válidos.")?;
+                        if element.get("points").is_some() {
+                            return Err("Hay un dibujo con trazos ambiguos.".into());
+                        }
+                        let mut count = 0;
+                        for stroke in strokes {
+                            if !valid_drawing_stroke(stroke) {
+                                return Err("Hay un dibujo con trazos inválidos.".into());
+                            }
+                            count += stroke["points"].as_array().unwrap().len();
+                            if count > 65_536 {
+                                return Err("El dibujo tiene demasiados puntos.".into());
+                            }
+                        }
+                    } else if !valid_drawing_stroke(element) {
+                        return Err("Hay un dibujo con puntos inválidos.".into());
                     }
                 } else {
                     let text = element
@@ -235,6 +232,36 @@ fn valid_highlight_color(color: Option<&serde_json::Value>) -> bool {
     )
 }
 
+fn valid_drawing_style(stroke: &serde_json::Value) -> bool {
+    matches!(
+        stroke.get("color").and_then(|value| value.as_str()),
+        Some("ink" | "salmon" | "olive" | "lilac")
+    ) && stroke
+        .get("lineWidth")
+        .and_then(|value| value.as_f64())
+        .is_some_and(|width| (1.0..=12.0).contains(&width))
+}
+
+fn valid_drawing_stroke(stroke: &serde_json::Value) -> bool {
+    valid_drawing_style(stroke)
+        && stroke
+            .get("points")
+            .and_then(|value| value.as_array())
+            .is_some_and(|points| {
+                (2..=4096).contains(&points.len())
+                    && points.iter().all(|point| {
+                        point.as_array().is_some_and(|values| {
+                            values.len() == 2
+                                && values.iter().all(|value| {
+                                    value.as_f64().is_some_and(|number| {
+                                        number.is_finite() && (0.0..=1.0).contains(&number)
+                                    })
+                                })
+                        })
+                    })
+            })
+}
+
 #[derive(Deserialize)]
 struct ElementGeometry {
     id: String,
@@ -268,6 +295,69 @@ impl ElementGeometry {
 mod feature_tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn grouped_drawings_preserve_strokes_and_legacy_paths_in_storage_and_files() {
+        let root = tempfile::tempdir().unwrap();
+        let directory = root.path().join("working");
+        let path = root.path().join("drawing.suki");
+        let mut storage = crate::storage::Storage::open(&directory).unwrap();
+        let mut journal = storage.load().unwrap();
+        journal.pages[0].elements = vec![
+            json!({"type":"drawing","id":"legacy","x":24,"y":24,"width":160,"height":112,"color":"ink","lineWidth":3,"points":[[0,0],[1,1]]}),
+            json!({"type":"drawing","id":"group","x":240,"y":240,"width":360,"height":300,"color":"lilac","lineWidth":6,"strokes":[
+                {"color":"lilac","lineWidth":6,"points":[[0,0],[0.5,0.25],[1,0]]},
+                {"color":"ink","lineWidth":3,"points":[[0,0.5],[0.5,1],[1,0.5]]}
+            ]}),
+        ];
+        journal.revision = storage.save(&journal).unwrap();
+        let saved = crate::files::save(&mut storage, &path, journal.revision).unwrap();
+        let next = crate::files::new(&mut storage, "Otro".into(), saved.revision).unwrap();
+        crate::files::open(&mut storage, &path, next.revision).unwrap();
+        assert_eq!(storage.load().unwrap().pages, journal.pages);
+        drop(storage);
+        assert_eq!(
+            crate::storage::Storage::open(&directory)
+                .unwrap()
+                .load()
+                .unwrap()
+                .pages,
+            journal.pages
+        );
+    }
+
+    #[test]
+    fn rejects_malformed_grouped_drawings_and_limits_the_total_points() {
+        let drawing = json!({"type":"drawing","id":"group","x":24,"y":24,"width":360,"height":300,"color":"ink","lineWidth":3,"strokes":[{"color":"ink","lineWidth":3,"points":[[0,0],[1,1]]}]});
+        let mut journal = Journal::new();
+        for strokes in [
+            json!(null),
+            json!([]),
+            json!([null]),
+            json!([{"color":"bad","lineWidth":3,"points":[[0,0],[1,1]]}]),
+            json!([{"color":"ink","lineWidth":13,"points":[[0,0],[1,1]]}]),
+            json!([{"color":"ink","lineWidth":3,"points":[[0,0],[1,2]]}]),
+        ] {
+            let mut invalid = drawing.clone();
+            invalid["strokes"] = strokes;
+            journal.pages[0].elements = vec![invalid];
+            assert!(journal.validate().is_err());
+        }
+        let mut ambiguous = drawing.clone();
+        ambiguous["points"] = json!([[0, 0], [1, 1]]);
+        journal.pages[0].elements = vec![ambiguous];
+        assert!(journal.validate().is_err());
+        let stroke = json!({"color":"ink","lineWidth":3,"points":vec![json!([0,0]);4096]});
+        let mut full = drawing;
+        full["strokes"] = json!(vec![stroke.clone(); 16]);
+        journal.pages[0].elements = vec![full];
+        assert!(journal.validate().is_ok());
+        journal.pages[0].elements[0]["strokes"]
+            .as_array_mut()
+            .unwrap()
+            .push(stroke);
+        assert!(journal.validate().is_err());
+    }
 
     #[test]
     fn validates_highlight_colors_and_real_calendar_dates() {
