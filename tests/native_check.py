@@ -18,6 +18,11 @@ from gi.repository import Gdk, GdkX11, Gtk
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "verification"
 OUT.mkdir(exist_ok=True)
+EXECUTABLE = ROOT / "src-tauri/target/release/sukijournal"
+sources = [path for folder in (ROOT / "frontend", ROOT / "src-tauri/src")
+           for path in folder.rglob("*") if path.is_file()]
+assert EXECUTABLE.exists() and EXECUTABLE.stat().st_mtime >= max(path.stat().st_mtime for path in sources), \
+    "Compilá el ejecutable release actualizado antes de ejecutar la prueba nativa (ver README)."
 Gtk.init([])
 x11 = ctypes.CDLL("libX11.so.6")
 xtest = ctypes.CDLL("libXtst.so.6")
@@ -94,7 +99,7 @@ def screenshot(native, name):
     pixbuf.savev(str(OUT / name), "png", [], [])
 
 
-with tempfile.TemporaryDirectory(prefix="suki-stage5-", dir=OUT) as temporary:
+with tempfile.TemporaryDirectory(prefix="suki-stage6-", dir=OUT) as temporary:
     environment = dict(os.environ, XDG_DATA_HOME=temporary,
                        XDG_CACHE_HOME=str(Path(temporary) / "cache"),
                        XDG_CONFIG_HOME=str(Path(temporary) / "config"))
@@ -112,9 +117,9 @@ with tempfile.TemporaryDirectory(prefix="suki-stage5-", dir=OUT) as temporary:
 
     reports = []
     for run in (1, 2):
-        log_path = OUT / f"stage5-native-{run}.log"
+        log_path = OUT / f"stage6-native-{run}.log"
         with log_path.open("w") as log:
-            process = subprocess.Popen([str(ROOT / "src-tauri/target/release/sukijournal")],
+            process = subprocess.Popen([str(EXECUTABLE)],
                                        cwd=ROOT, env=environment, stdout=log, stderr=log)
             try:
                 window_id = []
@@ -139,7 +144,7 @@ with tempfile.TemporaryDirectory(prefix="suki-stage5-", dir=OUT) as temporary:
                 x11.XFlush(display)
                 if run == 1:
                     assert len(state()["pages"]) == 1
-                    screenshot(native, "stage5-native-initial.png")
+                    screenshot(native, "stage6-native-initial.png")
                     click(native, 364, geometry(native)[3] - 36)
                     wait_for(lambda: len(state()["pages"]) == 2)
                     key(0xFF0D)  # Enter: el botón + conserva su foco.
@@ -210,11 +215,11 @@ with tempfile.TemporaryDirectory(prefix="suki-stage5-", dir=OUT) as temporary:
                     for _ in range(2):
                         modified_key(0xFF09)  # Hoja -> área de trabajo -> última opción (Luna).
                         time.sleep(0.1)
-                    screenshot(native, 'stage5-native-picker-focus.png')
+                    screenshot(native, 'stage6-native-picker-focus.png')
                     key(0xFF0D)  # Elegir Luna y volver a la hoja.
                     key(0xFF0D)  # Colocar el dibujo con teclado.
                     wait_for(lambda: len(json.loads(state()['pages'][0][2])) == 3)
-                    screenshot(native, 'stage5-native-stamp-choice.png')
+                    screenshot(native, 'stage6-native-stamp-choice.png')
                     assert json.loads(state()['pages'][0][2])[2]['stamp'] == 'moon', json.loads(state()['pages'][0][2])[2]
                     # El sellito comienza con Mover enfocado y no contiene un campo de texto.
                     for _ in range(24):
@@ -233,10 +238,43 @@ with tempfile.TemporaryDirectory(prefix="suki-stage5-", dir=OUT) as temporary:
                     wait_for(lambda: json.loads(state()['pages'][0][2])[2]['width'] == 184)
                     # Una última escala seguida de cierre confirma la cola de guardado.
                     modified_key(0xFF54)
+                    wait_for(lambda: json.loads(state()['pages'][0][2])[2]['width'] == 208)
+                    click(native, 100, 334)  # Calendario; el selector de mes recibe el foco.
+                    time.sleep(0.2)
+                    key(0xFF50)  # Home: Enero.
+                    key(0xFF54)  # Febrero.
+                    key(0xFF09)  # Año.
+                    modified_key(ord('a'), modifier=0xFFE3)
+                    type_ascii('2024')
+                    key(0xFF09)  # Colocar calendario.
+                    key(0xFF0D)  # Confirmar mes/año y enfocar la hoja.
+                    key(0xFF0D)  # Colocar con teclado.
+                    wait_for(lambda: len(json.loads(state()['pages'][0][2])) == 4)
+                    assert json.loads(state()['pages'][0][2])[3]['year'] == 2024
+                    assert json.loads(state()['pages'][0][2])[3]['month'] == 2
+                    # Mover el calendario debajo de los elementos anteriores.
+                    modified_key(0xFF53)
+                    for _ in range(16):
+                        modified_key(0xFF54)
+                    wait_for(lambda: json.loads(state()['pages'][0][2])[3]['y'] == 408)
+                    for _ in range(3):
+                        key(0xFF09)  # Mover -> eliminar -> mes -> año.
+                    modified_key(ord('a'), modifier=0xFFE3)
+                    type_ascii('2100')
+                    key(0xFF09)  # Salir del año confirma el período; tamaño recibe el foco.
+                    wait_for(lambda: json.loads(state()['pages'][0][2])[3]['year'] == 2100)
+                    modified_key(ord('z'), modifier=0xFFE3)
+                    wait_for(lambda: json.loads(state()['pages'][0][2])[3]['year'] == 2024)
+                    modified_key(ord('y'), modifier=0xFFE3)
+                    wait_for(lambda: json.loads(state()['pages'][0][2])[3]['year'] == 2100)
+                    modified_key(0xFF53)
+                    wait_for(lambda: json.loads(state()['pages'][0][2])[3]['width'] == 384)
+                    # Cerrar inmediatamente después de otra escala prueba el guardado pendiente.
+                    modified_key(0xFF54)
                     expected = None
                 else:
                     assert state() == expected, "La reapertura no conservó el texto ni su geometría"
-                screenshot(native, f"stage5-native-{run}.png")
+                screenshot(native, f"stage6-native-{run}.png")
                 # Alt+F4 pide el cierre normal y ejercita el guardado previo a destroy.
                 alt = x11.XKeysymToKeycode(display, 0xFFE9)
                 xtest.XTestFakeKeyEvent(display, alt, 1, 0)
@@ -256,6 +294,9 @@ with tempfile.TemporaryDirectory(prefix="suki-stage5-", dir=OUT) as temporary:
                     stamp = json.loads(expected['pages'][0][2])[2]
                     assert stamp['stamp'] == 'moon', stamp
                     assert (stamp['x'],stamp['y'],stamp['width'],stamp['height']) == (600,48,208,208)
+                    calendar = json.loads(expected['pages'][0][2])[3]
+                    assert (calendar['year'], calendar['month']) == (2100, 2), calendar
+                    assert (calendar['x'],calendar['y'],calendar['width'],calendar['height']) == (48,408,384,364), calendar
                 else:
                     assert state() == expected
                 reports.append({"nativeRun": run, "checks": "passed", "pages": len(expected["pages"]),
@@ -269,5 +310,5 @@ with tempfile.TemporaryDirectory(prefix="suki-stage5-", dir=OUT) as temporary:
                     except subprocess.TimeoutExpired:
                         process.kill()
                         process.wait()
-    (OUT / "stage5-native-results.json").write_text(json.dumps(reports, indent=2))
+    (OUT / "stage6-native-results.json").write_text(json.dumps(reports, indent=2))
     print(json.dumps(reports, ensure_ascii=False))

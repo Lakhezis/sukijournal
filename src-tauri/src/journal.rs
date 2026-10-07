@@ -65,12 +65,13 @@ impl Journal {
             let mut element_ids = HashSet::new();
             for element in &page.elements {
                 let kind = match element.get("type").and_then(|value| value.as_str()) {
-                    Some(kind @ ("text" | "postit" | "stamp")) => kind,
+                    Some(kind @ ("text" | "postit" | "stamp" | "calendar")) => kind,
                     _ => continue,
                 };
                 let geometry: ElementGeometry = serde_json::from_value(element.clone())
                     .map_err(|_| "Hay un elemento con datos inválidos.")?;
                 let (min_width, min_height) = match kind {
+                    "calendar" => (280.0, 280.0),
                     "stamp" => (96.0, 96.0),
                     "postit" => (160.0, 144.0),
                     _ => (120.0, 88.0),
@@ -84,6 +85,12 @@ impl Journal {
                         )
                     {
                         return Err("Hay un sellito con dibujo o tamaño inválido.".into());
+                    }
+                } else if kind == "calendar" {
+                    let year = element.get("year").and_then(|value| value.as_u64());
+                    let month = element.get("month").and_then(|value| value.as_u64());
+                    if !matches!(year, Some(1..=9999)) || !matches!(month, Some(1..=12)) {
+                        return Err("Hay un calendario con mes o año inválido.".into());
                     }
                 } else {
                     let text = element

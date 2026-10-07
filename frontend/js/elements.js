@@ -1,10 +1,12 @@
 // Coordenadas en el interior de la hoja, independientes del scroll de la ventana.
 import { findStamp } from "./stamps.js";
+import { validPeriod } from "./calendar.js";
 export const PAPER = Object.freeze({ width: 852, height: 1078 });
 export const TEXT_LIMIT = 10_000;
 export const MIN_TEXT_SIZE = Object.freeze({ width: 120, height: 88 });
 export const MIN_POSTIT_SIZE = Object.freeze({ width: 160, height: 144 });
 export const MIN_STAMP_SIZE = Object.freeze({ width: 96, height: 96 });
+export const MIN_CALENDAR_SIZE = Object.freeze({ width: 280, height: 280 });
 export const POSTIT_COLORS = Object.freeze([
   { value: "yellow", label: "Amarillo" }, { value: "pink", label: "Rosa" },
   { value: "sage", label: "Verde" }, { value: "lilac", label: "Lila" },
@@ -12,9 +14,9 @@ export const POSTIT_COLORS = Object.freeze([
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 
 export const isTextElement = element => element.type === "text" || element.type === "postit";
-export const isEditableElement = element => isTextElement(element) || element.type === "stamp";
+export const isEditableElement = element => isTextElement(element) || element.type === "stamp" || element.type === "calendar";
 export const minimumSize = element => element.type === "stamp" ? MIN_STAMP_SIZE
-  : element.type === "postit" ? MIN_POSTIT_SIZE : MIN_TEXT_SIZE;
+  : element.type === "calendar" ? MIN_CALENDAR_SIZE : element.type === "postit" ? MIN_POSTIT_SIZE : MIN_TEXT_SIZE;
 
 export function validateElement(element) {
   const minimum = minimumSize(element);
@@ -25,6 +27,7 @@ export function validateElement(element) {
       element.height < minimum.height || element.x + element.width > PAPER.width ||
       element.y + element.height > PAPER.height ||
       (element.type === "postit" && !POSTIT_COLORS.some(color => color.value === element.color)) ||
+      (element.type === "calendar" && !validPeriod(element.year, element.month)) ||
       (element.type === "stamp" && (!findStamp(element.stamp) || element.width !== element.height))) {
     throw new Error("Hay un elemento inválido o fuera de la hoja.");
   }
@@ -44,6 +47,11 @@ export function createPostit(id, x = 24, y = 24, color = "yellow") {
 export function createStamp(id, stamp = "flower", x = 24, y = 24) {
   return validateElement({ type: "stamp", id, stamp, width: 160, height: 160,
     x: clamp(x, 0, PAPER.width - 160), y: clamp(y, 0, PAPER.height - 160) });
+}
+
+export function createCalendar(id, year, month, x = 24, y = 24) {
+  return validateElement({ type: "calendar", id, year, month, width: 360, height: 340,
+    x: clamp(x, 0, PAPER.width - 360), y: clamp(y, 0, PAPER.height - 340) });
 }
 
 function changePage(journal, pageId, transform) {
@@ -81,6 +89,13 @@ export function colorPostit(journal, pageId, id, color) {
   return changeElement(journal, pageId, id, element => {
     if (element.type !== "postit") throw new Error("El color solo se aplica a los post-it.");
     return { ...element, color };
+  });
+}
+
+export function changeCalendarPeriod(journal, pageId, id, year, month) {
+  return changeElement(journal, pageId, id, element => {
+    if (element.type !== "calendar") throw new Error("El mes y el año solo se aplican a calendarios.");
+    return { ...element, year, month };
   });
 }
 

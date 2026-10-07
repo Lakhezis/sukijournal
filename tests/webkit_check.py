@@ -242,6 +242,14 @@ def stamp_geometry():
 def place_stamp(stamp, x, y):
     js("document.querySelector('#tool-stamp').click(); document.querySelector('[data-stamp=" + stamp + "]').click(); (()=>{const p=document.querySelector('#journal-page'),r=p.getBoundingClientRect(); p.dispatchEvent(new MouseEvent('click',{bubbles:true,clientX:r.left+" + str(x + 1) + ",clientY:r.top+" + str(y + 1) + "}));})(); 'ok'")
 
+
+def calendar_geometry():
+    return json.loads(js("JSON.stringify(JSON.parse(localStorage.getItem('testJournal')).pages.find(p=>p.id===document.querySelector('[aria-current=page]').dataset.pageId).elements.find(e=>e.type==='calendar'))"))
+
+
+def place_calendar(year, month, x=24, y=500):
+    js("document.querySelector('#tool-calendar').click(); document.querySelector('#calendar-month').value=" + str(month) + "; document.querySelector('#calendar-year').value=" + str(year) + "; document.querySelector('#calendar-picker').requestSubmit(); (()=>{const p=document.querySelector('#journal-page'),r=p.getBoundingClientRect(); p.dispatchEvent(new MouseEvent('click',{bubbles:true,clientX:r.left+" + str(x + 1) + ",clientY:r.top+" + str(y + 1) + "}));})(); 'ok'")
+
 reports = []
 try:
     loaded = []
@@ -251,7 +259,7 @@ try:
     wait_for(lambda: loaded)
     wait_for(lambda: js("document.querySelector('#app-status').textContent") == 'Guardado')
     js("localStorage.clear(); 'ok'")
-    assert js("String(document.querySelectorAll('.tool-button:disabled').length)") == '5'
+    assert js("String(document.querySelectorAll('.tool-button:disabled').length)") == '4'
     assert js("String(document.querySelector('#add-page').disabled)") == 'false'
     assert js("String(document.querySelector('#journal-page').hidden)") == 'false'
     assert js("String(document.querySelectorAll('#page-tabs button').length)") == '1'
@@ -544,6 +552,104 @@ try:
     assert stamp_geometry() == original_stamp
     reports.append({'check':'stamp save failure retains geometry and retries before undo', 'result':'passed'})
 
+    js("document.querySelector('#tool-calendar').click(); 'ok'")
+    assert js("document.activeElement.id") == 'calendar-month'
+    assert js("String(document.querySelectorAll('#calendar-month option').length)") == '12'
+    js("document.querySelector('#journal-page').dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true})); 'ok'")
+    assert js("String(document.querySelectorAll('.calendar-element').length)") == '0'
+    js("document.querySelector('#calendar-year').value=0; document.querySelector('#calendar-picker').requestSubmit(); 'ok'")
+    assert js("String(document.querySelectorAll('.calendar-element').length)") == '0'
+    js("document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true})); 'ok'")
+    assert js("String(document.querySelector('#calendar-picker').hidden)") == 'true'
+    assert js("document.activeElement.id") == 'tool-calendar'
+    place_calendar(2024, 2)
+    saved()
+    assert js("String(document.querySelector('#calendar-picker').hidden)") == 'true'
+    assert (calendar_geometry()['year'], calendar_geometry()['month']) == (2024, 2)
+    assert js("document.querySelector('.calendar-table caption').textContent") == 'Febrero 2024'
+    assert js("String([...document.querySelectorAll('.calendar-table td')].filter(c=>c.textContent).length)") == '29'
+    assert js("JSON.stringify([...document.querySelector('.calendar-table tbody tr').children].map(c=>c.textContent))") == '["","","","1","2","3","4"]'
+    assert js("document.activeElement.className") == 'text-move'
+    assert js("document.querySelector('#page-subtitle').textContent") == '1 texto · 1 post-it · 1 sellito · 1 calendario'
+    js("document.querySelector('.calendar-year').focus(); document.activeElement.value=2100; document.activeElement.dispatchEvent(new Event('change',{bubbles:true})); 'ok'")
+    saved()
+    assert calendar_geometry()['year'] == 2100
+    assert js("String([...document.querySelectorAll('.calendar-table td')].filter(c=>c.textContent).length)") == '28'
+    js("document.querySelector('#undo').click(); 'ok'")
+    saved()
+    assert js("document.querySelector('.calendar-year').value") == '2024'
+    js("document.querySelector('#redo').click(); 'ok'")
+    saved()
+    assert js("document.querySelector('.calendar-year').value") == '2100'
+    js("document.querySelector('.calendar-year').focus(); document.activeElement.value=''; document.activeElement.dispatchEvent(new Event('change',{bubbles:true})); document.querySelector('.calendar-month').focus(); 'ok'")
+    assert js("document.querySelector('.calendar-year').value") == '2100'
+    assert js("document.querySelector('#app-status').textContent") == 'Guardado'
+    js("document.querySelector('.calendar-year').value=2021; document.querySelector('.calendar-year').dispatchEvent(new Event('change',{bubbles:true})); 'ok'")
+    saved()
+    assert js("String(document.querySelectorAll('.calendar-table tbody tr').length)") == '4'
+    js("document.querySelector('.calendar-year').value=2026; document.querySelector('.calendar-month').value=3; document.querySelector('.calendar-month').dispatchEvent(new Event('change',{bubbles:true})); 'ok'")
+    saved()
+    assert js("String(document.querySelectorAll('.calendar-table tbody tr').length)") == '6'
+    js("document.querySelector('.calendar-element .text-resize').focus(); for(let i=0;i<5;i++) document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowLeft',shiftKey:true,bubbles:true})); for(let i=0;i<3;i++) document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowUp',shiftKey:true,bubbles:true})); 'ok'")
+    saved()
+    assert (calendar_geometry()['width'], calendar_geometry()['height']) == (280,280)
+    assert js("String(document.querySelector('.calendar-content').scrollHeight <= document.querySelector('.calendar-content').clientHeight)") == 'true'
+    js("document.querySelector('#undo').click(); 'ok'")
+    saved()
+    assert (calendar_geometry()['width'], calendar_geometry()['height']) == (360,340)
+    reports.append({'check':'calendar picker, invalid year, leap century, six weeks, period history and focus', 'result':'passed'})
+
+    drag('.calendar-element .text-move', 24, -24)
+    saved()
+    assert (calendar_geometry()['x'], calendar_geometry()['y']) == (48,476)
+    drag('.calendar-element .text-resize', 48, 24)
+    saved()
+    assert (calendar_geometry()['width'], calendar_geometry()['height']) == (408,364)
+    js("document.querySelector('.calendar-element .text-resize').dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowLeft',shiftKey:true,bubbles:true})); 'ok'")
+    saved()
+    assert calendar_geometry()['width'] == 384
+    js("document.querySelector('#undo').click(); 'ok'")
+    saved()
+    original_calendar = calendar_geometry()
+    drag('.calendar-element .text-move', 24, 24, cancel=True)
+    assert calendar_geometry() == original_calendar
+    drag('.calendar-element .text-move', 0, 0, scroll=(0,48))
+    saved()
+    assert calendar_geometry()['y'] == 524
+    original_calendar = calendar_geometry()
+    js("document.querySelector('.calendar-element .text-move').focus(); document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'Delete',bubbles:true})); 'ok'")
+    saved()
+    assert js("String(document.querySelectorAll('.calendar-element').length)") == '0'
+    assert js("document.activeElement.id") == 'journal-page'
+    js("document.querySelector('#undo').click(); 'ok'")
+    saved()
+    assert calendar_geometry() == original_calendar
+    js("document.querySelectorAll('#page-tabs button')[1].click(); 'ok'")
+    saved()
+    assert js("String(document.querySelectorAll('.calendar-element').length)") == '0'
+    js("document.querySelector('#page-tabs button').click(); 'ok'")
+    saved()
+    loaded.clear()
+    view.reload()
+    wait_for(lambda: loaded)
+    saved()
+    assert calendar_geometry() == original_calendar
+    assert text_value() == literal and postit_geometry() == original_note and stamp_geometry() == original_stamp
+    reports.append({'check':'calendar drag with scroll, independent resize, cancel, keyboard deletion, navigation and reload', 'result':'passed'})
+
+    js("window.failSave=true; document.querySelector('.calendar-month').value=12; document.querySelector('.calendar-month').dispatchEvent(new Event('change',{bubbles:true})); 'ok'")
+    wait_for(lambda: js("document.querySelector('#app-status').textContent") == 'Sin guardar')
+    assert js("document.querySelector('.calendar-table caption').textContent") == 'Diciembre 2026'
+    assert js("String(document.querySelector('.calendar-year').disabled)") == 'true'
+    assert js("String(document.querySelector('#tool-calendar').disabled)") == 'true'
+    js("window.failSave=false; document.querySelector('#retry-storage').click(); 'ok'")
+    saved()
+    assert calendar_geometry()['month'] == 12
+    js("document.querySelector('#undo').click(); 'ok'")
+    saved()
+    assert calendar_geometry() == original_calendar
+    reports.append({'check':'calendar save error retains displayed period and retries before undo', 'result':'passed'})
+
     js("window.failSave = true; document.querySelector('#add-page').click(); 'ok'")
     wait_for(lambda: js("document.querySelector('#app-status').textContent") == 'Sin guardar')
     assert js("String(document.querySelector('#storage-notice').hidden)") == 'false'
@@ -594,6 +700,8 @@ try:
     saved()
     place_stamp('star', 336, 312)
     saved()
+    place_calendar(2024, 2, 24, 300)
+    saved()
     for width, height in [(1280,900), (900,640)]:
         view.set_size_request(width,height)
         geometry = Gdk.Geometry()
@@ -616,12 +724,18 @@ try:
         assert float(js("String(document.activeElement.getBoundingClientRect().y)")) >= 0
         js("document.activeElement.click(); 'ok'")
         assert js("document.activeElement.id") == 'workspace'
-        snapshot(f'stage5-webkit-{width}x{height}.png')
+        js("document.querySelector('.calendar-element .text-resize').focus(); for(let i=0;i<5;i++) document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowLeft',shiftKey:true,bubbles:true})); for(let i=0;i<3;i++) document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowUp',shiftKey:true,bubbles:true})); 'ok'")
+        saved()
+        assert (calendar_geometry()['width'], calendar_geometry()['height']) == (280,280)
+        assert js("String(document.querySelector('.calendar-content').scrollHeight <= document.querySelector('.calendar-content').clientHeight)") == 'true'
+        js("document.querySelector('#workspace').scrollTo(0,0); document.querySelector('.calendar-month').focus(); 'ok'")
+        snapshot(f'stage6-webkit-{width}x{height}.png')
         reports.append({'viewport':[width,height], 'result':'passed'})
 
     type_text('Texto confirmado antes de cerrar')
     type_text('Nota confirmada antes de cerrar', '.postit-element .text-input')
     js("document.querySelector('.stamp-element .text-move').focus(); document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowRight',shiftKey:true,bubbles:true})); 'ok'")
+    js("document.querySelector('.calendar-year').value=2000; document.querySelector('.calendar-year').dispatchEvent(new Event('change',{bubbles:true})); 'ok'")
     js("document.querySelector('#add-page').click(); window.testCloseHandler({preventDefault(){window.closePrevented=true}}); 'ok'")
     assert js("String(Boolean(window.testDestroyed))") == 'false'
     wait_for(lambda: js("String(Boolean(window.testDestroyed))") == 'true')
@@ -629,10 +743,11 @@ try:
     assert js("JSON.parse(localStorage.getItem('testJournal')).pages[17].elements[0].text") == 'Texto confirmado antes de cerrar'
     assert js("JSON.parse(localStorage.getItem('testJournal')).pages[17].elements[1].text") == 'Nota confirmada antes de cerrar'
     assert js("JSON.parse(localStorage.getItem('testJournal')).pages[17].elements[2].x.toString()") == '360'
-    reports.append({'check':'close waits for pending text, post-it, stamp and page save', 'result':'passed'})
+    assert js("JSON.parse(localStorage.getItem('testJournal')).pages[17].elements[3].year.toString()") == '2000'
+    reports.append({'check':'close waits for pending text, post-it, stamp, calendar and page save', 'result':'passed'})
     assert not errors, errors
 finally:
     window.destroy()
     server.shutdown()
-(OUT / 'stage5-frontend-results.json').write_text(json.dumps({'checks':reports,'errors':errors},indent=2))
+(OUT / 'stage6-frontend-results.json').write_text(json.dumps({'checks':reports,'errors':errors},indent=2))
 print(json.dumps({'checks':reports,'errors':errors},ensure_ascii=False))

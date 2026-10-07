@@ -98,7 +98,7 @@
             <span class="tool-icon tool-icon-pink"><svg class="icon" aria-hidden="true"><use href="#icon-stamp" /></svg></span>
             <span>Sellitos</span>
           </button>
-          <button class="tool-button" type="button" disabled title="Calendario — en preparación">
+          <button class="tool-button" id="tool-calendar" type="button" disabled aria-pressed="false" aria-expanded="false" aria-controls="calendar-picker" aria-describedby="calendar-tool-help" title="Agregar un calendario mensual">
             <span class="tool-icon tool-icon-lilac"><svg class="icon" aria-hidden="true"><use href="#icon-calendar" /></svg></span>
             <span>Calendario</span>
           </button>
@@ -116,6 +116,19 @@
           <div class="stamp-options" id="stamp-options"></div>
           <p class="tool-help">Elegí un dibujo y hacé clic en la hoja. Con teclado, pulsá Enter en la hoja. Escape cancela.</p>
         </fieldset>
+
+        <form class="calendar-picker" id="calendar-picker" hidden>
+          <fieldset>
+            <legend>Elegí un mes</legend>
+            <label for="calendar-month">Mes</label>
+            <select id="calendar-month" disabled></select>
+            <label for="calendar-year">Año</label>
+            <input id="calendar-year" type="number" min="1" max="9999" step="1" required disabled />
+            <button class="retry-button" type="submit" disabled>Colocar calendario</button>
+            <p class="tool-help">Elegí mes y año, pulsá Colocar calendario y hacé clic en la hoja. Con teclado, Enter en la hoja. Escape cancela.</p>
+          </fieldset>
+        </form>
+        <p class="tool-help" id="calendar-tool-help" hidden>Hacé clic en la hoja para colocar el calendario. Con teclado, pulsá Enter en la hoja. Escape cancela.</p>
 
         <div class="tool-group future-tools" role="group" aria-labelledby="future-tools-heading">
           <p class="group-label" id="future-tools-heading">Próximamente</p>

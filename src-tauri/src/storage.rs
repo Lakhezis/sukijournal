@@ -447,4 +447,81 @@ mod tests {
         assert!(storage.save(&duplicate).is_err());
         assert_eq!(storage.load().unwrap(), original);
     }
+
+    #[test]
+    fn persists_calendar_period_geometry_and_deletion_with_existing_elements() {
+        let root = tempfile::tempdir().unwrap();
+        let mut storage = Storage::open(root.path()).unwrap();
+        let mut journal = storage.load().unwrap();
+        journal.pages[0].elements = vec![
+            json!({"type":"text", "id":"text", "text":"Texto previo", "x":24,
+                "y":24, "width":240, "height":160}),
+            json!({"type":"postit", "id":"note", "text":"Nota previa", "color":"pink",
+                "x":336, "y":24, "width":240, "height":240}),
+            json!({"type":"stamp", "id":"stamp", "stamp":"moon",
+                "x":600, "y":24, "width":160, "height":160}),
+            json!({"type":"future", "data":{"keep":true}}),
+            json!({"type":"calendar", "id":"calendar", "year":2024, "month":2,
+                "x":100.5, "y":400, "width":408, "height":364}),
+        ];
+        journal.revision = storage.save(&journal).unwrap();
+        drop(storage);
+        let mut reopened = Storage::open(root.path()).unwrap();
+        assert_eq!(reopened.load().unwrap(), journal);
+        for (year, month) in [(1, 1), (99, 2), (2100, 2), (9999, 12)] {
+            journal.pages[0].elements[4]["year"] = json!(year);
+            journal.pages[0].elements[4]["month"] = json!(month);
+            journal.revision = reopened.save(&journal).unwrap();
+            assert_eq!(reopened.load().unwrap(), journal);
+        }
+        journal.pages[0].elements.truncate(4);
+        journal.revision = reopened.save(&journal).unwrap();
+        assert_eq!(reopened.load().unwrap(), journal);
+    }
+
+    #[test]
+    fn rejects_invalid_calendars_without_overwriting_saved_data() {
+        let root = tempfile::tempdir().unwrap();
+        let mut storage = Storage::open(root.path()).unwrap();
+        let original = storage.load().unwrap();
+        let valid = json!({"type":"calendar", "id":"calendar", "year":2024, "month":2,
+            "x":24, "y":24, "width":360, "height":340});
+        for (field, value) in [
+            ("year", json!(0)),
+            ("year", json!(10000)),
+            ("year", json!(2024.5)),
+            ("year", json!("2024")),
+            ("year", json!(null)),
+            ("month", json!(0)),
+            ("month", json!(13)),
+            ("month", json!(1.5)),
+            ("month", json!(null)),
+            ("width", json!(279)),
+            ("height", json!(279)),
+            ("x", json!(-1)),
+            ("y", json!(1078)),
+            ("id", json!("")),
+        ] {
+            let mut invalid = original.clone();
+            let mut calendar = valid.clone();
+            calendar[field] = value;
+            invalid.pages[0].elements.push(calendar);
+            assert!(storage.save(&invalid).is_err());
+        }
+        for field in ["year", "month"] {
+            let mut invalid = original.clone();
+            let mut calendar = valid.clone();
+            calendar.as_object_mut().unwrap().remove(field);
+            invalid.pages[0].elements.push(calendar);
+            assert!(storage.save(&invalid).is_err());
+        }
+        let mut duplicate = original.clone();
+        duplicate.pages[0].elements = vec![
+            valid,
+            json!({"type":"stamp", "id":"calendar", "stamp":"star",
+                "x":24, "y":24, "width":160, "height":160}),
+        ];
+        assert!(storage.save(&duplicate).is_err());
+        assert_eq!(storage.load().unwrap(), original);
+    }
 }

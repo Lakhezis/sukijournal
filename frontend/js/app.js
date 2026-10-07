@@ -4,6 +4,7 @@ import { createStore } from "./store.js";
 import { createEditor } from "./editor.js";
 import { isEditableElement } from "./elements.js";
 import { STAMPS } from "./stamps.js";
+import { fillMonths } from "./calendar-view.js";
 
 const workspace = document.querySelector("#workspace");
 const page = document.querySelector("#journal-page");
@@ -19,6 +20,14 @@ const textTool = document.querySelector("#tool-text");
 const postitTool = document.querySelector("#tool-postit");
 const stampTool = document.querySelector("#tool-stamp");
 const stampPicker = document.querySelector("#stamp-picker");
+const calendarTool = document.querySelector("#tool-calendar");
+const calendarPicker = document.querySelector("#calendar-picker");
+const calendarMonth = document.querySelector("#calendar-month");
+const calendarYear = document.querySelector("#calendar-year");
+const today = new Date();
+fillMonths(calendarMonth);
+calendarMonth.value = today.getMonth() + 1;
+calendarYear.value = today.getFullYear();
 let chosenStamp = "flower";
 const undoButton = document.querySelector("#undo");
 const redoButton = document.querySelector("#redo");
@@ -27,15 +36,18 @@ let activeId = null;
 let lastState = { journal: null, phase: "loading", error: "" };
 let store;
 const editor = createEditor({ paper: page, workspace, getStore: () => store,
-  onPlacement(type) {
-    for (const [tool, name] of [[textTool, "text"], [postitTool, "postit"], [stampTool, "stamp"]]) {
+  onPlacement(type, calendarPrepared) {
+    for (const [tool, name] of [[textTool, "text"], [postitTool, "postit"], [stampTool, "stamp"], [calendarTool, "calendar"]]) {
       tool.classList.toggle("is-active", type === name);
       tool.setAttribute("aria-pressed", String(type === name));
     }
     stampTool.setAttribute("aria-expanded", String(type === "stamp"));
+    calendarTool.setAttribute("aria-expanded", String(type === "calendar" && !calendarPrepared));
     document.querySelector("#text-tool-help").hidden = type !== "text";
     document.querySelector("#postit-tool-help").hidden = type !== "postit";
     stampPicker.hidden = type !== "stamp";
+    calendarPicker.hidden = type !== "calendar" || calendarPrepared;
+    document.querySelector("#calendar-tool-help").hidden = type !== "calendar" || !calendarPrepared;
   } });
 
 for (const stamp of STAMPS) {
@@ -69,6 +81,17 @@ stampPicker.addEventListener("keydown", event => {
   editor.setPlacement(null);
   stampTool.focus({ preventScroll: true });
 });
+calendarPicker.addEventListener("submit", event => {
+  event.preventDefault();
+  editor.finish();
+  editor.chooseCalendar(calendarYear.valueAsNumber, Number(calendarMonth.value));
+});
+calendarPicker.addEventListener("keydown", event => {
+  if (event.key !== "Escape") return;
+  event.preventDefault();
+  editor.setPlacement(null);
+  calendarTool.focus({ preventScroll: true });
+});
 
 function revealActivePage() {
   const button = navigation.querySelector('[aria-current="page"]');
@@ -90,6 +113,8 @@ function render(state) {
   textTool.disabled = !ready;
   postitTool.disabled = !ready;
   stampTool.disabled = !ready;
+  calendarTool.disabled = !ready;
+  for (const field of calendarPicker.querySelectorAll("input, select, button")) field.disabled = !ready;
   for (const choice of stampPicker.querySelectorAll("button")) choice.disabled = !ready;
   undoButton.disabled = !ready || !state.canUndo;
   redoButton.disabled = !ready || !state.canRedo;
@@ -113,8 +138,10 @@ function render(state) {
   const texts = active?.elements.filter(element => element.type === "text").length || 0;
   const postits = active?.elements.filter(element => element.type === "postit").length || 0;
   const stamps = active?.elements.filter(element => element.type === "stamp").length || 0;
+  const calendars = active?.elements.filter(element => element.type === "calendar").length || 0;
   const counts = [texts ? `${texts} ${texts === 1 ? "texto" : "textos"}` : "",
-    postits ? `${postits} post-it` : "", stamps ? `${stamps} ${stamps === 1 ? "sellito" : "sellitos"}` : ""].filter(Boolean);
+    postits ? `${postits} post-it` : "", stamps ? `${stamps} ${stamps === 1 ? "sellito" : "sellitos"}` : "",
+    calendars ? `${calendars} ${calendars === 1 ? "calendario" : "calendarios"}` : ""].filter(Boolean);
   document.querySelector("#page-subtitle").textContent = active
     ? (counts.join(" · ") || "lienzo en blanco") : "";
   document.querySelector("#unknown-elements").hidden = !active?.elements.some(element => !isEditableElement(element));
@@ -183,6 +210,11 @@ try {
   for (const [tool, type] of [[textTool, "text"], [postitTool, "postit"], [stampTool, "stamp"]]) {
     tool.addEventListener("click", () => { editor.finish(); editor.togglePlacement(type); });
   }
+  calendarTool.addEventListener("click", () => {
+    editor.finish();
+    editor.togglePlacement("calendar");
+    if (!calendarPicker.hidden) calendarMonth.focus({ preventScroll: true });
+  });
   function history(action) {
     if (closing || !lastState.journal || lastState.phase === "error" || lastState.phase === "loading") return;
     editor.finish();

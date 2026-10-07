@@ -13,7 +13,8 @@
 }
 
 .journal-page.is-placing-postit,
-.journal-page.is-placing-stamp {
+.journal-page.is-placing-stamp,
+.journal-page.is-placing-calendar {
   cursor: crosshair;
 }
 
@@ -186,6 +187,50 @@
 .stamp-element .text-resize {
   position: absolute;
 }
+
+.calendar-element {
+  background: var(--paper);
+  border-color: #ded3e4;
+  box-shadow: 2px 4px 10px #5c453510;
+}
+
+.calendar-content {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  height: calc(100% - 28px);
+  padding: 0 10px 16px;
+}
+
+.calendar-period { display: flex; gap: 8px; }
+.calendar-month { flex: 1; min-width: 0; }
+.calendar-year { width: 86px; }
+.calendar-period select,
+.calendar-period input {
+  height: 29px;
+  padding: 2px 6px;
+  border: 1px solid #ded3e4;
+  border-radius: 5px;
+  color: var(--ink);
+  background: #f4eaf5;
+  font: 13px "Nunito", sans-serif;
+}
+
+.calendar-table {
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+  table-layout: fixed;
+  border-collapse: collapse;
+  text-align: center;
+  font-size: 14px;
+}
+
+.calendar-table caption { padding-bottom: 5px; font-size: 17px; font-weight: 800; }
+.calendar-table th { padding: 3px 0; color: var(--olive); font-size: 11px; }
+.calendar-table td { border: 1px solid #e7ded3; }
+.calendar-table th:nth-child(n+6),
+.calendar-table td:nth-child(n+6) { background: #f4eaf580; }
 
 .unknown-elements {
   padding-top: 12px;
