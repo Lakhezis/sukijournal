@@ -5,7 +5,7 @@ import { findStamp } from "./stamps.js";
 import { MONTHS, validPeriod } from "./calendar.js";
 import { createCalendarView } from "./calendar-view.js";
 import { createTextView } from "./text-view.js";
-import { drawingArtwork, renderDrawing, styleSelect, WASHI_PATTERNS, DRAWING_COLORS, POINT_LIMIT } from "./decorations.js";
+import { drawingArtwork, renderDrawing, styleSelect, WASHI_COLORS, WASHI_PATTERNS, DRAWING_COLORS, POINT_LIMIT } from "./decorations.js";
 import { validHighlightColor } from "./formatting.js";
 
 // Vista del editor: los gestos usan coordenadas de la hoja y producen cambios de estado.
@@ -251,7 +251,7 @@ export function createEditor({ paper, workspace, getStore, onPlacement, onFeedba
       const styles = document.createElement("div");
       styles.className = "decoration-style";
       const updateStyle = changes => { if (ready) getStore().update(journal => styleDecoration(journal, model.id, element.id, changes)); };
-      decorationColor = styleSelect(washi ? POSTIT_COLORS : DRAWING_COLORS, `Color del ${label}`, color => updateStyle({ color }));
+      decorationColor = styleSelect(washi ? WASHI_COLORS : DRAWING_COLORS, `Color del ${label}`, color => updateStyle({ color }));
       styles.append(decorationColor);
       if (washi) {
         pattern = styleSelect(WASHI_PATTERNS, "Diseño del washi tape", pattern => updateStyle({ pattern }));
@@ -513,7 +513,7 @@ export function createEditor({ paper, workspace, getStore, onPlacement, onFeedba
       if (DRAWING_COLORS.some(choice => choice.value === color) && Number.isFinite(lineWidth) && lineWidth >= 1 && lineWidth <= 12) drawingStyle = { color, lineWidth };
     },
     setWashiStyle(color, pattern) {
-      if (POSTIT_COLORS.some(choice => choice.value === color) && WASHI_PATTERNS.some(choice => choice.value === pattern)) washiStyle = { color, pattern };
+      if (WASHI_COLORS.some(choice => choice.value === color) && WASHI_PATTERNS.some(choice => choice.value === pattern)) washiStyle = { color, pattern };
     },
     chooseCalendar(year, month) {
       if (!ready || !validPeriod(year, month)) return false;

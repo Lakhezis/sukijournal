@@ -3,7 +3,7 @@ import { findStamp } from "./stamps.js";
 import { validPeriod, validDay, validateDayHighlights } from "./calendar.js";
 import { validateMarks, rebaseMarks, toggleMarks } from "./formatting.js";
 import { validHighlightColor } from "./formatting.js";
-import { WASHI_PATTERNS, validDrawing, POINT_LIMIT } from "./decorations.js";
+import { WASHI_COLORS, WASHI_PATTERNS, validDrawing, POINT_LIMIT } from "./decorations.js";
 export const PAPER = Object.freeze({ width: 852, height: 1078 });
 export const TEXT_LIMIT = 10_000;
 export const MIN_TEXT_SIZE = Object.freeze({ width: 120, height: 88 });
@@ -36,7 +36,7 @@ export function validateElement(element) {
       element.y + element.height > PAPER.height ||
       (element.type === "postit" && !POSTIT_COLORS.some(color => color.value === element.color)) ||
       (element.type === "calendar" && !validPeriod(element.year, element.month)) ||
-      (element.type === "washi" && (!WASHI_PATTERNS.some(pattern => pattern.value === element.pattern) || !POSTIT_COLORS.some(color => color.value === element.color))) ||
+      (element.type === "washi" && (!WASHI_PATTERNS.some(pattern => pattern.value === element.pattern) || !WASHI_COLORS.some(color => color.value === element.color))) ||
       (element.type === "drawing" && !validDrawing(element)) ||
       (element.type === "stamp" && (!findStamp(element.stamp) || element.width !== element.height))) {
     throw new Error("Hay un elemento inválido o fuera de la hoja.");

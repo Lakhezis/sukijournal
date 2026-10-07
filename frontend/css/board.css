@@ -327,6 +327,10 @@
 [data-highlight-color="pink"] { --highlight-color: #f6cdd7; }
 [data-highlight-color="sage"] { --highlight-color: #d6e5c7; }
 [data-highlight-color="lilac"] { --highlight-color: #e2d5f2; }
+[data-highlight-color="mint"] { --highlight-color: #caffbf; }
+[data-highlight-color="cyan"] { --highlight-color: #9bf6ff; }
+[data-highlight-color="blue"] { --highlight-color: #a0c4ff; }
+[data-highlight-color="violet"] { --highlight-color: #bdb2ff; }
 .calendar-table td:has(.calendar-day) { padding: 0; }
 .calendar-day { display: block; width: 100%; min-height: 24px; height: 100%; padding: 2px; border: 0; border-radius: 4px; background: transparent; color: var(--ink); font: inherit; cursor: pointer; }
 .calendar-day[aria-pressed="true"] { background: var(--highlight-color); font-weight: 800; }
@@ -359,6 +363,10 @@
 .washi-element[data-color="yellow"] .washi-artwork { --tape-color: #f9e6a3; }
 .washi-element[data-color="sage"] .washi-artwork { --tape-color: #d6e5c7; }
 .washi-element[data-color="lilac"] .washi-artwork { --tape-color: #e2d5f2; }
+.washi-element[data-color="mint"] .washi-artwork { --tape-color: #caffbf; }
+.washi-element[data-color="cyan"] .washi-artwork { --tape-color: #9bf6ff; }
+.washi-element[data-color="blue"] .washi-artwork { --tape-color: #a0c4ff; }
+.washi-element[data-color="violet"] .washi-artwork { --tape-color: #bdb2ff; }
 .washi-element[data-pattern="dots"] .washi-artwork {
   background-image: radial-gradient(circle, #ffffffaa 2px, transparent 3px);
   background-size: 14px 14px;

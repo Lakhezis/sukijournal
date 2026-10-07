@@ -31,12 +31,17 @@ Seleccioná una frase en un texto o post-it y pulsá **Subrayado** o **Remarcado
 Repetir la acción quita el formato. Subrayado cierra el panel de color y diseño
 de la herramienta anterior, incluso si todavía no seleccionaste una frase.
 
-Remarcado abre un selector de **amarillo, rosa, verde o lila**. Cambiar el color
+Remarcado abre un selector de **amarillo, rosa, verde, lila, menta, turquesa,
+celeste o violeta**. Cambiar el color
 recolorea la selección actual; podés combinar distintos colores dentro del mismo
 texto. Si hacés clic fuera del elemento o seleccionás otro, el color elegido
 se usa para el próximo remarcado y no cambia las marcas anteriores.
 El formato se conserva al editar, guardar y reabrir el journal, y admite
 Deshacer y Rehacer. `Escape` cierra el panel de remarcado.
+
+Washi tape usa los mismos ocho colores, tanto desde la herramienta como desde
+el selector de una cinta existente. Los cuatro tonos agregados son Menta
+(`#caffbf`), Turquesa (`#9bf6ff`), Celeste (`#a0c4ff`) y Violeta (`#bdb2ff`).
 
 ## Post-it
 
@@ -157,8 +162,8 @@ independientemente; los sellitos mantienen ancho y alto iguales.
 Los tamaños mínimos dejan espacio para usar los controles y leer el contenido.
 
 Cada texto o nota admite hasta **10.000 unidades UTF-16**. Algunos símbolos,
-como ciertos emojis, ocupan dos unidades. Los post-it admiten los cuatro colores
-indicados, sin rotación. Los sellitos usan la paleta fija del catálogo y no
+como ciertos emojis, ocupan dos unidades. Los fondos de los post-it admiten
+amarillo, rosa, verde y lila, sin rotación. Los sellitos usan la paleta fija del catálogo y no
 permiten importar imágenes externas.
 
 ## Recorrido para comprobar la aplicación

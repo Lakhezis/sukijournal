@@ -29,10 +29,10 @@ La interfaz usa HTML, CSS y JavaScript dentro de Tauri 2, con guardado en SQLite
 | Post-it | Agregar notas amarillas, rosas, verdes o lilas. |
 | Sellitos | Decorar con Flor, Brote, Estrella, Corazón, Arcoíris y Luna. |
 | Calendario | Colocar un mes y año, con semanas de lunes a domingo. |
-| Washi tape | Pegar cintas de colores con rayas, puntos o cuadrícula. |
+| Washi tape | Pegar cintas en ocho colores con rayas, puntos o cuadrícula. |
 | Dibujo | Dibujar trazos a mano alzada. |
 | Subrayado | Subrayar una selección de texto o post-it. |
-| Remarcado | Destacar frases y días del calendario en amarillo, rosa, verde o lila. |
+| Remarcado | Destacar frases y días del calendario en ocho colores. |
 
 Podés mover, cambiar de tamaño y eliminar los elementos de la hoja. También
 agregar páginas con `+`, volver a las anteriores y deshacer o rehacer cambios.
@@ -124,7 +124,8 @@ Están implementados el autoguardado, el historial, las ocho herramientas y la
 administración de páginas. El menú Archivo permite crear, abrir y guardar
 journals `.suki`, guardar una copia con otro nombre y cambiar el nombre del journal.
 
-El calendario permite cambiar su período y remarcar días en cuatro colores.
+Remarcado y Washi tape ofrecen amarillo, rosa, verde, lila, menta, turquesa,
+celeste y violeta. El calendario permite cambiar su período y remarcar días.
 Las marcas se conservan por fecha al cambiar de mes o año. Los eventos, feriados
 y anotaciones dentro de las celdas quedan pendientes.
 

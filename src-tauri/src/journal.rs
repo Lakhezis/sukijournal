@@ -129,13 +129,12 @@ impl Journal {
                         }
                     }
                 } else if kind == "washi" {
-                    if !matches!(
-                        element.get("color").and_then(|v| v.as_str()),
-                        Some("yellow" | "pink" | "sage" | "lilac")
-                    ) || !matches!(
-                        element.get("pattern").and_then(|v| v.as_str()),
-                        Some("stripes" | "dots" | "grid")
-                    ) {
+                    if !valid_highlight_color(element.get("color"))
+                        || !matches!(
+                            element.get("pattern").and_then(|v| v.as_str()),
+                            Some("stripes" | "dots" | "grid")
+                        )
+                    {
                         return Err("Hay una cinta con color o diseño inválido.".into());
                     }
                 } else if kind == "drawing" {
@@ -232,7 +231,7 @@ impl Journal {
 fn valid_highlight_color(color: Option<&serde_json::Value>) -> bool {
     matches!(
         color.and_then(|value| value.as_str()),
-        Some("yellow" | "pink" | "sage" | "lilac")
+        Some("yellow" | "pink" | "sage" | "lilac" | "mint" | "cyan" | "blue" | "violet")
     )
 }
 
@@ -310,6 +309,14 @@ mod feature_tests {
             json!({"type":"postit","id":"note","x":24,"y":24,"width":240,"height":240,"color":"yellow","text":"Mi semana","marks":[{"kind":"highlight","start":0,"end":2,"color":"sage"}]}),
             json!({"type":"calendar","id":"cal","x":24,"y":300,"width":360,"height":340,"year":2024,"month":2,"dayHighlights":[{"year":2024,"month":2,"day":29,"color":"pink"}]}),
         ];
+        for (index, color) in ["mint", "cyan", "blue", "violet"].iter().enumerate() {
+            journal.pages[0].elements.push(json!({"type":"text","id":format!("text-{index}"),"x":24,"y":24,"width":240,"height":160,"text":"Ideas","marks":[{"kind":"highlight","start":0,"end":5,"color":color}]}));
+            journal.pages[0].elements.push(json!({"type":"washi","id":format!("tape-{index}"),"x":24,"y":24,"width":264,"height":96,"color":color,"pattern":"dots"}));
+            journal.pages[0].elements[1]["dayHighlights"]
+                .as_array_mut()
+                .unwrap()
+                .push(json!({"year":2024,"month":2,"day":index+1,"color":color}));
+        }
         journal.revision = storage.save(&journal).unwrap();
         let saved = crate::files::save(&mut storage, &path, journal.revision).unwrap();
         let next = crate::files::new(&mut storage, "Otro".into(), saved.revision).unwrap();

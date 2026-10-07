@@ -157,3 +157,36 @@ test("colored text and calendar marks support undo, redo, autosave and reopening
   assert.equal(latest.journal.pages[0].elements[0].marks[0].color,"pink");
   assert.deepEqual(latest.journal.pages[0].elements[2].dayHighlights,[{year:2024,month:2,day:29,color:"lilac"}]);
 });
+
+test("new colors support tape creation/editing, text and calendar history and saved journals", async () => {
+  let saved = insertElement(initial(), "first", createCalendar("cal", 2024, 2)), latest;
+  const storage = {load:async()=>structuredClone(saved), save:async journal=>{
+    saved = {...structuredClone(journal),revision:journal.revision+1}; return saved.revision;
+  }};
+  const store = createStore(storage, state=>{latest=state;});
+  await store.load();
+  store.update(journal=>editElementText(journal,"first","text","Ideas"));
+  store.update(journal=>editElementText(journal,"first","note","Notas"));
+  for (const [index,color] of ["mint","cyan","blue","violet"].entries()) {
+    store.update(journal=>formatElementText(journal,"first","text","highlight",index,index+1,color));
+    store.update(journal=>formatElementText(journal,"first","note","highlight",index,index+1,color));
+    store.update(journal=>highlightCalendarDay(journal,"first","cal",index+1,color));
+    store.update(journal=>insertElement(journal,"first",createWashi(`tape-${index}`,24,24,color,"dots")));
+    assert.throws(()=>createPostit("note",24,24,color));
+  }
+  store.update(journal=>styleDecoration(journal,"first","tape-0",{color:"violet",pattern:"grid"}));
+  assert.equal(latest.journal.pages[0].elements[3].color,"violet");
+  store.undo();
+  assert.equal(latest.journal.pages[0].elements[3].color,"mint");
+  store.redo();
+  assert.equal(latest.journal.pages[0].elements[3].pattern,"grid");
+  await store.flush();
+  const expected = structuredClone(latest.journal.pages);
+  const reopened = createStore(storage,state=>{latest=state;});
+  await reopened.load();
+  assert.deepEqual(latest.journal.pages,expected);
+  validateJournal(latest.journal);
+  assert.deepEqual(latest.journal.pages[0].elements[0].marks.map(mark=>mark.color),["mint","cyan","blue","violet"]);
+  assert.deepEqual(latest.journal.pages[0].elements[2].dayHighlights.map(mark=>mark.color),["mint","cyan","blue","violet"]);
+  assert.throws(()=>createWashi("bad",24,24,"unknown"));
+});

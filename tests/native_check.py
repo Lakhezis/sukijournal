@@ -360,33 +360,39 @@ with tempfile.TemporaryDirectory(prefix="suki-stage7-", dir=OUT) as temporary:
                     click_tool(native, 645)  # Remarcado sobre la misma selección.
                     wait_for(lambda: len(json.loads(state()['pages'][0][2])[0].get('marks', [])) == 2)
                     click(native, 100, 737)  # Pasar directamente al selector conserva la frase.
-                    key(0xFF54)  # Amarillo -> rosa.
+                    key(0xFF57)  # End: elegir el nuevo Violeta.
                     key(0xFF0D)
-                    wait_for(lambda: json.loads(state()['pages'][0][2])[0]['marks'][1].get('color') == 'pink')
+                    wait_for(lambda: json.loads(state()['pages'][0][2])[0]['marks'][1].get('color') == 'violet')
                     click(native, 1000, 480)  # Salir del texto haciendo clic en la hoja libre.
                     click(native, 100, 737)
-                    key(0xFF54)  # Rosa -> verde para futuras marcas.
+                    key(0xFF50)  # Amarillo para futuras marcas.
                     key(0xFF0D)
                     time.sleep(0.5)
-                    assert json.loads(state()['pages'][0][2])[0]['marks'][1]['color'] == 'pink'
-                    key(0xFF52)  # Volver a rosa, sin recuperar la selección anterior.
+                    assert json.loads(state()['pages'][0][2])[0]['marks'][1]['color'] == 'violet'
+                    key(0xFF57)  # Volver a Violeta, sin recuperar la selección anterior.
                     click(native, 400, 300)  # El aviso de formato desplaza el campo hacia abajo.
                     for _ in range(14):
                         key(0xFF09)  # Recorrer los elementos hasta el primer día del calendario.
                     key(0xFF0D)  # Remarcar el día con teclado.
                     wait_for(lambda: json.loads(state()['pages'][0][2])[3].get('dayHighlights') == [
-                        {'year':2100,'month':2,'day':1,'color':'pink'}])
+                        {'year':2100,'month':2,'day':1,'color':'violet'}])
                     click(native, 1000, 480)
                     scroll_top(native, 100)
                     click(native, 100, 737)
-                    key(0xFF54)
+                    key(0xFF50)
                     key(0xFF0D)
                     time.sleep(0.5)
                     assert json.loads(state()['pages'][0][2])[3]['dayHighlights'] == [
-                        {'year':2100,'month':2,'day':1,'color':'pink'}]
+                        {'year':2100,'month':2,'day':1,'color':'violet'}]
                     click_tool(native, 500)  # Washi tape.
+                    click(native, 100, 737)  # Color de la próxima cinta.
+                    key(0xFF57)
+                    key(0xFF0D)
+                    for _ in range(3):
+                        key(0xFF09)  # Color -> diseño -> área de trabajo -> hoja.
                     key(0xFF0D)
                     wait_for(lambda: len(json.loads(state()['pages'][0][2])) == 5)
+                    assert json.loads(state()['pages'][0][2])[4]['color'] == 'violet'
                     click_tool(native, 549)  # Dibujo colocado con teclado.
                     key(0xFF0D)
                     wait_for(lambda: len(json.loads(state()['pages'][0][2])) == 6)
@@ -421,8 +427,9 @@ with tempfile.TemporaryDirectory(prefix="suki-stage7-", dir=OUT) as temporary:
                     assert len(exported['pages']) == 3
                     assert len(exported['pages'][0]['elements']) == 6
                     assert len(exported['pages'][0]['elements'][0]['marks']) == 2
-                    assert exported['pages'][0]['elements'][0]['marks'][1]['color'] == 'pink'
-                    assert exported['pages'][0]['elements'][3]['dayHighlights'] == [{'year':2100,'month':2,'day':1,'color':'pink'}]
+                    assert exported['pages'][0]['elements'][0]['marks'][1]['color'] == 'violet'
+                    assert exported['pages'][0]['elements'][3]['dayHighlights'] == [{'year':2100,'month':2,'day':1,'color':'violet'}]
+                    assert exported['pages'][0]['elements'][4]['color'] == 'violet'
                     modified_key(ord('n'), modifier=0xFFE3)
                     accept_name('Viajes')
                     wait_for(lambda: state()['journal'][0] == 'Viajes')
@@ -470,9 +477,10 @@ with tempfile.TemporaryDirectory(prefix="suki-stage7-", dir=OUT) as temporary:
                     assert (calendar['year'], calendar['month']) == (2100, 2), calendar
                     assert (calendar['x'],calendar['y'],calendar['width'],calendar['height']) == (48,408,384,364), calendar
                     assert expected['pages'][0][1] == 'Semana recuperada'
-                    assert element['marks'] == [{'kind':'underline','start':0,'end':9}, {'kind':'highlight','start':0,'end':9,'color':'pink'}], element
-                    assert calendar['dayHighlights'] == [{'year':2100,'month':2,'day':1,'color':'pink'}], calendar
+                    assert element['marks'] == [{'kind':'underline','start':0,'end':9}, {'kind':'highlight','start':0,'end':9,'color':'violet'}], element
+                    assert calendar['dayHighlights'] == [{'year':2100,'month':2,'day':1,'color':'violet'}], calendar
                     assert json.loads(expected['pages'][0][2])[4]['type'] == 'washi'
+                    assert json.loads(expected['pages'][0][2])[4]['color'] == 'violet'
                     assert json.loads(expected['pages'][0][2])[5]['type'] == 'drawing'
                     assert file_path() == str(first_file)
                 else:

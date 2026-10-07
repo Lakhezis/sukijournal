@@ -6,8 +6,7 @@ import { isEditableElement } from "./elements.js";
 import { STAMPS } from "./stamps.js";
 import { fillMonths } from "./calendar-view.js";
 import { createFileControls } from "./file-controls.js";
-import { POSTIT_COLORS } from "./elements.js";
-import { WASHI_PATTERNS, DRAWING_COLORS } from "./decorations.js";
+import { WASHI_COLORS, WASHI_PATTERNS, DRAWING_COLORS } from "./decorations.js";
 import { HIGHLIGHT_COLORS } from "./formatting.js";
 
 const workspace = document.querySelector("#workspace");
@@ -62,7 +61,7 @@ const editor = createEditor({ paper: page, workspace, getStore: () => store,
     document.querySelector("#highlight-picker").hidden = type !== "highlight";
   } });
 
-for (const [id, choices, initial] of [["washi-color", POSTIT_COLORS, "pink"], ["washi-pattern", WASHI_PATTERNS, "stripes"], ["drawing-color", DRAWING_COLORS, "ink"], ["highlight-color", HIGHLIGHT_COLORS, "yellow"]]) {
+for (const [id, choices, initial] of [["washi-color", WASHI_COLORS, "pink"], ["washi-pattern", WASHI_PATTERNS, "stripes"], ["drawing-color", DRAWING_COLORS, "ink"], ["highlight-color", HIGHLIGHT_COLORS, "yellow"]]) {
   const field = document.querySelector(`#${id}`);
   for (const choice of choices) {
     const option = document.createElement("option");

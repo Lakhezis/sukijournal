@@ -834,8 +834,10 @@ try:
     js("document.querySelector('.text-input').focus(); document.activeElement.setSelectionRange(0,3); document.activeElement.dispatchEvent(new Event('select',{bubbles:true})); document.querySelector('#tool-highlight').click(); 'ok'")
     saved()
     assert js("String(document.querySelector('#highlight-picker').hidden)") == 'false'
-    assert js("String(document.querySelectorAll('#highlight-color option').length)") == '4'
-    for color, css in [('pink','rgb(246, 205, 215)'), ('sage','rgb(214, 229, 199)')]:
+    assert js("String(document.querySelectorAll('#highlight-color option').length)") == '8'
+    added_colors = [('mint','rgb(202, 255, 191)'), ('cyan','rgb(155, 246, 255)'),
+                    ('blue','rgb(160, 196, 255)'), ('violet','rgb(189, 178, 255)')]
+    for color, css in [('pink','rgb(246, 205, 215)'), ('sage','rgb(214, 229, 199)')] + added_colors:
         js(f"document.querySelector('#highlight-color').value='{color}'; document.querySelector('#highlight-color').dispatchEvent(new Event('change')); 'ok'")
         saved()
         assert text_geometry()['marks'] == [{'kind':'underline','start':0,'end':3},{'kind':'highlight','start':0,'end':3,'color':color}], text_geometry()['marks']
@@ -855,7 +857,7 @@ try:
     assert text_geometry()['marks'] == [{'kind':'underline','start':0,'end':3},{'kind':'highlight','start':0,'end':3}]
     js("document.querySelector('#highlight-picker').dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true})); 'ok'")
     assert js("String(document.querySelector('#highlight-picker').hidden)") == 'true'
-    reports.append({'check':'four highlight colors, partial recoloring, visual colors, history and legacy yellow', 'result':'passed'})
+    reports.append({'check':'eight highlight colors, partial recoloring, exact visual colors, history and legacy yellow', 'result':'passed'})
 
     js("document.querySelector('.text-input').focus(); document.activeElement.setSelectionRange(0,0); document.activeElement.dispatchEvent(new Event('select',{bubbles:true})); document.querySelector('#highlight-color').value='pink'; document.querySelector('#highlight-color').dispatchEvent(new Event('change')); document.querySelector('#tool-highlight').click(); document.querySelector('.calendar-day[data-day=\"29\"]').click(); 'ok'")
     saved()
@@ -973,10 +975,54 @@ try:
     assert calendar_geometry()['dayHighlights'] == before_days
     reports.append({'check':'calendar deselection, future color, keyboard focus changes, Escape and active day recoloring', 'result':'passed'})
 
-    js("document.querySelector('#tool-washi').click(); document.querySelector('#washi-color').value='sage'; document.querySelector('#washi-pattern').value='dots'; document.querySelector('#washi-pattern').dispatchEvent(new Event('change')); (()=>{const p=document.querySelector('#journal-page'),r=p.getBoundingClientRect();p.dispatchEvent(new MouseEvent('click',{bubbles:true,clientX:r.left+481,clientY:r.top+511}));})(); 'ok'")
+    # Los nuevos colores también se ven y se guardan en días del calendario.
+    for color, css in added_colors:
+        js(f"document.querySelector('#highlight-color').value='{color}'; document.querySelector('#highlight-color').dispatchEvent(new Event('change')); 'ok'")
+        if color == 'mint':
+            js("document.querySelector('.calendar-day[data-day=\"4\"]').focus(); document.activeElement.click(); 'ok'")
+        saved()
+        assert calendar_geometry()['dayHighlights'][-1]['color'] == color
+        assert js("getComputedStyle(document.querySelector('.calendar-day[data-day=\"4\"]')).backgroundColor") == css
+    js("document.querySelector('#undo').click(); 'ok'")
+    saved()
+    assert calendar_geometry()['dayHighlights'][-1]['color'] == 'blue'
+    js("document.querySelector('#redo').click(); 'ok'")
+    saved()
+    loaded.clear()
+    view.reload()
+    wait_for(lambda: loaded)
+    saved()
+    assert js("document.querySelector('.calendar-day[data-day=\"4\"]').dataset.highlightColor") == 'violet'
+    js("document.querySelector('#tool-highlight').click(); document.querySelector('#highlight-color').value='violet'; document.querySelector('#highlight-color').dispatchEvent(new Event('change')); document.querySelector('.calendar-day[data-day=\"4\"]').focus(); document.activeElement.click(); 'ok'")
+    saved()
+    assert calendar_geometry()['dayHighlights'] == before_days
+    reports.append({'check':'four added calendar colors, exact appearance, undo/redo and reload', 'result':'passed'})
+
+    js("document.querySelector('#tool-washi').click(); document.querySelector('#washi-color').value='cyan'; document.querySelector('#washi-pattern').value='dots'; document.querySelector('#washi-pattern').dispatchEvent(new Event('change')); (()=>{const p=document.querySelector('#journal-page'),r=p.getBoundingClientRect();p.dispatchEvent(new MouseEvent('click',{bubbles:true,clientX:r.left+481,clientY:r.top+511}));})(); 'ok'")
     saved()
     assert js("document.querySelector('.washi-element').dataset.pattern") == 'dots'
-    assert js("document.querySelector('.washi-element').dataset.color") == 'sage'
+    assert js("document.querySelector('.washi-element').dataset.color") == 'cyan'
+    assert js("String(document.querySelectorAll('#washi-color option').length)") == '8'
+    assert js("String(document.querySelectorAll('.washi-element .decoration-style select')[0].options.length)") == '8'
+    assert js("String(document.querySelector('.postit-color').options.length)") == '4'
+    for color, css in added_colors:
+        js(f"(()=>{{const s=document.querySelector('.washi-element [aria-label=\"Color del washi tape\"]');s.value='{color}';s.dispatchEvent(new Event('change'));}})(); 'ok'")
+        saved()
+        assert js("document.querySelector('.washi-element').dataset.color") == color
+        assert js("getComputedStyle(document.querySelector('.washi-artwork')).backgroundColor") == css
+        assert js("document.querySelector('.washi-element').dataset.pattern") == 'dots'
+    js("document.querySelector('#undo').click(); 'ok'")
+    saved()
+    assert js("document.querySelector('.washi-element').dataset.color") == 'blue'
+    js("document.querySelector('#redo').click(); 'ok'")
+    saved()
+    loaded.clear()
+    view.reload()
+    wait_for(lambda: loaded)
+    saved()
+    assert js("document.querySelector('.washi-element').dataset.color") == 'violet'
+    assert js("getComputedStyle(document.querySelector('.washi-artwork')).backgroundColor") == 'rgb(189, 178, 255)'
+    reports.append({'check':'expanded washi creation/editing palette, all four exact colors, pattern preservation, undo/redo and reload', 'result':'passed'})
     js("(()=>{const s=document.querySelector('.washi-element [aria-label=\"Diseño del washi tape\"]');s.value='grid';s.dispatchEvent(new Event('change'));})(); 'ok'")
     saved()
     assert js("document.querySelector('.washi-element').dataset.pattern") == 'grid'

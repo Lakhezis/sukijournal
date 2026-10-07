@@ -139,8 +139,9 @@ También aplica subrayado y remarcado, coloca washi tape y un dibujo con teclado
 renombra y elimina una página y la recupera con Deshacer. Usa los diálogos GTK
 reales para cancelar un guardado, guardar dos journals separados y abrir el
 primero, comprobando que conserva sus elementos y formato.
-El recorrido también elige rosa desde el selector de remarcado y marca un día
-del calendario con teclado; ambos colores se conservan en el archivo y al reabrir.
+El recorrido también elige Violeta desde los selectores de remarcado y washi,
+marca un día del calendario con teclado y coloca una cinta. Los colores se
+conservan en el archivo y al reabrir.
 Comprueba que cambiar el color después de hacer clic en la hoja libre no
 recolorea el texto ni el día anterior.
 El journal personal se mantiene separado del journal de prueba.
@@ -230,3 +231,21 @@ Verificado el **7 de octubre de 2026**: seis suites JavaScript aprobadas,
 release actualizado, incluyendo guardado y reapertura. Los resultados quedaron
 en `verification/highlight-deselection-frontend-results.json` y
 `verification/highlight-deselection-native-results.json`.
+
+## Paleta ampliada de Remarcado y Washi tape
+
+Ambas herramientas comparten los ocho tonos de `frontend/js/colors.js`.
+La ampliación agrega Menta (`#caffbf`), Turquesa (`#9bf6ff`), Celeste (`#a0c4ff`)
+y Violeta (`#bdb2ff`). Se eligieron por su mayor distancia mínima en CIELAB
+respecto de los cuatro colores anteriores, entre los catorce tonos propuestos.
+
+Los colores se aplican al texto, al texto de los post-it, a los días del
+calendario y a las cintas nuevas o existentes. La validación JavaScript y Rust
+admite los nuevos valores en el autoguardado y los archivos `.suki`.
+Las pruebas comparan los colores renderizados con sus valores exactos,
+comprueban los diseños de las cintas y verifican Deshacer/Rehacer y reapertura.
+
+Verificado el **7 de octubre de 2026**: 19 pruebas Rust, 36 JavaScript en seis
+suites, 31 grupos de interfaz sin errores de carga ni de CSP y dos ejecuciones
+del release actualizado. Los resultados quedaron en
+`verification/expanded-colors-*-results.json`.

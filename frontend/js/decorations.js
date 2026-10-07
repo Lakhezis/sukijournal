@@ -1,3 +1,6 @@
+import { CREATIVE_COLORS } from "./colors.js";
+
+export const WASHI_COLORS = CREATIVE_COLORS;
 export const WASHI_PATTERNS = Object.freeze([
   { value: "stripes", label: "Rayas" }, { value: "dots", label: "Puntos" }, { value: "grid", label: "Cuadrícula" },
 ]);

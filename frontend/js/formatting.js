@@ -1,9 +1,8 @@
+import { CREATIVE_COLORS } from "./colors.js";
+
 export const FORMAT_KINDS = Object.freeze(["underline", "highlight"]);
 export const MARK_LIMIT = 2000;
-export const HIGHLIGHT_COLORS = Object.freeze([
-  { value: "yellow", label: "Amarillo" }, { value: "pink", label: "Rosa" },
-  { value: "sage", label: "Verde" }, { value: "lilac", label: "Lila" },
-].map(Object.freeze));
+export const HIGHLIGHT_COLORS = CREATIVE_COLORS;
 export const validHighlightColor = color => HIGHLIGHT_COLORS.some(choice => choice.value === color);
 const markColor = mark => mark.color ?? "yellow";
 
