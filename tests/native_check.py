@@ -67,6 +67,20 @@ def key(keysym):
     x11.XFlush(display)
 
 
+def modified_key(keysym, modifier=0xFFE1):
+    code = x11.XKeysymToKeycode(display, modifier)
+    xtest.XTestFakeKeyEvent(display, code, 1, 0)
+    key(keysym)
+    xtest.XTestFakeKeyEvent(display, code, 0, 0)
+    x11.XFlush(display)
+
+
+def type_ascii(value):
+    for character in value:
+        key(0xFF0D if character == '\n' else ord(character))
+        time.sleep(0.02)
+
+
 def screenshot(native, name):
     _, _, width, height = geometry(native)
     pixbuf = Gdk.pixbuf_get_from_window(native, 0, 0, width, height)
@@ -74,7 +88,7 @@ def screenshot(native, name):
     pixbuf.savev(str(OUT / name), "png", [], [])
 
 
-with tempfile.TemporaryDirectory(prefix="suki-stage2-", dir=OUT) as temporary:
+with tempfile.TemporaryDirectory(prefix="suki-stage3-", dir=OUT) as temporary:
     environment = dict(os.environ, XDG_DATA_HOME=temporary,
                        XDG_CACHE_HOME=str(Path(temporary) / "cache"),
                        XDG_CONFIG_HOME=str(Path(temporary) / "config"))
@@ -92,7 +106,7 @@ with tempfile.TemporaryDirectory(prefix="suki-stage2-", dir=OUT) as temporary:
 
     reports = []
     for run in (1, 2):
-        log_path = OUT / f"stage2-native-{run}.log"
+        log_path = OUT / f"stage3-native-{run}.log"
         with log_path.open("w") as log:
             process = subprocess.Popen([str(ROOT / "src-tauri/target/release/sukijournal")],
                                        cwd=ROOT, env=environment, stdout=log, stderr=log)
@@ -119,17 +133,43 @@ with tempfile.TemporaryDirectory(prefix="suki-stage2-", dir=OUT) as temporary:
                 x11.XFlush(display)
                 if run == 1:
                     assert len(state()["pages"]) == 1
-                    screenshot(native, "stage2-native-initial.png")
+                    screenshot(native, "stage3-native-initial.png")
                     click(native, 364, geometry(native)[3] - 36)
                     wait_for(lambda: len(state()["pages"]) == 2)
                     key(0xFF0D)  # Enter: el botón + conserva su foco.
                     wait_for(lambda: len(state()["pages"]) == 3)
                     click(native, 276, geometry(native)[3] - 36)  # Página 1.
                     wait_for(lambda: state()["journal"][1] == "page-1")
-                    expected = state()
+                    # Desde Página 1: retroceder a la hoja, al área de trabajo y a Texto.
+                    for _ in range(3):
+                        modified_key(0xFF09)  # Shift+Tab.
+                        time.sleep(0.1)
+                    key(0xFF0D)  # Activar Texto y enfocar la hoja.
+                    key(0xFF0D)  # Crear un texto en la zona visible.
+                    wait_for(lambda: len(json.loads(state()["pages"][0][2])) == 1)
+                    type_ascii('mis ideas\nsegunda linea')
+                    wait_for(lambda: json.loads(state()["pages"][0][2])[0]['text'] == 'mis ideas\nsegunda linea')
+                    # Mover con teclado y después cambiar el tamaño.
+                    modified_key(0xFF09)
+                    modified_key(0xFF09)
+                    modified_key(0xFF53)  # Shift+Right: 24 px.
+                    modified_key(0xFF54)  # Shift+Down: 24 px.
+                    for _ in range(3):
+                        key(0xFF09)
+                        time.sleep(0.1)
+                    modified_key(0xFF53)
+                    modified_key(0xFF54)
+                    wait_for(lambda: all(json.loads(state()["pages"][0][2])[0][name] == value
+                        for name,value in [('x',48),('y',48),('width',264),('height',184)]))
+                    # Volver al campo y cerrar durante el guardado diferido de una última letra.
+                    modified_key(0xFF09)
+                    modified_key(0xFF57, modifier=0xFFE3)  # Ctrl+End: ubicar el cursor al final.
+                    key(ord('x'))
+                    final_text = 'mis ideas\nsegunda lineax'
+                    expected = None
                 else:
-                    assert state() == expected, "La reapertura no conservó el journal"
-                screenshot(native, f"stage2-native-{run}.png")
+                    assert state() == expected, "La reapertura no conservó el texto ni su geometría"
+                screenshot(native, f"stage3-native-{run}.png")
                 # Alt+F4 pide el cierre normal y ejercita el guardado previo a destroy.
                 alt = x11.XKeysymToKeycode(display, 0xFFE9)
                 xtest.XTestFakeKeyEvent(display, alt, 1, 0)
@@ -138,9 +178,15 @@ with tempfile.TemporaryDirectory(prefix="suki-stage2-", dir=OUT) as temporary:
                 x11.XFlush(display)
                 wait_for(lambda: process.poll() is not None)
                 assert process.returncode == 0, process.returncode
-                assert state() == expected
+                if run == 1:
+                    expected = state()
+                    element = json.loads(expected['pages'][0][2])[0]
+                    assert element['text'] == final_text, element
+                    assert (element['x'],element['y'],element['width'],element['height']) == (48,48,264,184)
+                else:
+                    assert state() == expected
                 reports.append({"nativeRun": run, "checks": "passed", "pages": len(expected["pages"]),
-                                "activePage": expected["journal"][1], "revision": expected["journal"][2]})
+                                "activePage": expected["journal"][1], "revision": expected["journal"][2], "text": json.loads(expected["pages"][0][2])[0]})
             finally:
                 if process.poll() is None:
                     process.terminate()
@@ -149,5 +195,5 @@ with tempfile.TemporaryDirectory(prefix="suki-stage2-", dir=OUT) as temporary:
                     except subprocess.TimeoutExpired:
                         process.kill()
                         process.wait()
-    (OUT / "stage2-native-results.json").write_text(json.dumps(reports, indent=2))
+    (OUT / "stage3-native-results.json").write_text(json.dumps(reports, indent=2))
     print(json.dumps(reports, ensure_ascii=False))

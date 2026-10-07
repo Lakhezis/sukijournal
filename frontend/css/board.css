@@ -8,6 +8,115 @@
   scrollbar-width: thin;
 }
 
+.journal-page.is-placing-text {
+  cursor: text;
+}
+
+.text-element {
+  position: absolute;
+  border: 1px solid transparent;
+  border-radius: 7px;
+}
+
+.text-element:hover,
+.text-element.is-selected,
+.text-element:focus-within {
+  border-color: var(--salmon);
+  background: #fffdfaeb;
+}
+
+.text-element.is-dragging {
+  z-index: 2;
+  box-shadow: 0 5px 14px #5c45351a;
+}
+
+.text-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  height: 28px;
+  padding: 2px 4px;
+  opacity: 0;
+}
+
+.text-element:hover .text-controls,
+.text-element.is-selected .text-controls,
+.text-element:focus-within .text-controls {
+  opacity: 1;
+}
+
+.text-controls button,
+.text-resize {
+  padding: 2px 5px;
+  border: 0;
+  border-radius: 4px;
+  color: var(--olive);
+  background: transparent;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.text-element.is-selected {
+  z-index: 1;
+}
+
+.text-controls .text-move {
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.text-controls button:enabled:hover,
+.text-resize:enabled:hover {
+  background: var(--pink);
+}
+
+.text-input {
+  display: block;
+  width: 100%;
+  height: calc(100% - 28px);
+  padding: 4px 9px 14px;
+  border: 0;
+  outline: none;
+  resize: none;
+  color: var(--ink);
+  background: transparent;
+  font: 18px/1.5 "Nunito", sans-serif;
+  overflow: auto;
+}
+
+.text-input::placeholder {
+  color: var(--muted);
+  font-size: 15px;
+}
+
+.text-resize {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  padding: 1px 4px;
+  cursor: nwse-resize;
+  touch-action: none;
+  opacity: 0;
+}
+
+.text-element:hover .text-resize,
+.text-element.is-selected .text-resize,
+.text-element:focus-within .text-resize {
+  opacity: 1;
+}
+
+.text-controls button:disabled,
+.text-resize:disabled {
+  cursor: not-allowed;
+}
+
+.unknown-elements {
+  padding-top: 12px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
 .workspace:focus-visible {
   outline-offset: -5px;
 }

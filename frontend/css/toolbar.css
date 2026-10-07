@@ -31,6 +31,7 @@
 }
 
 .tool-button {
+  cursor: pointer;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -44,6 +45,13 @@
   text-align: left;
   font-size: 13px;
   font-weight: 700;
+}
+
+.tool-help {
+  margin: 10px;
+  color: var(--olive);
+  font-size: 12px;
+  line-height: 1.6;
 }
 
 .tool-button:enabled:hover {

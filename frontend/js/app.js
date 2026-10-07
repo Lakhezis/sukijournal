@@ -1,6 +1,7 @@
 import { addPage, selectPage } from "./journal.js";
 import { nativeStorage } from "./storage.js";
 import { createStore } from "./store.js";
+import { createEditor } from "./editor.js";
 
 const workspace = document.querySelector("#workspace");
 const page = document.querySelector("#journal-page");
@@ -12,9 +13,19 @@ const noticeMessage = document.querySelector("#storage-message");
 const retryButton = document.querySelector("#retry-storage");
 const reloadButton = document.querySelector("#reload-journal");
 const reloadDialog = document.querySelector("#reload-dialog");
+const textTool = document.querySelector("#tool-text");
+const undoButton = document.querySelector("#undo");
+const redoButton = document.querySelector("#redo");
 let closing = false;
 let activeId = null;
 let lastState = { journal: null, phase: "loading", error: "" };
+let store;
+const editor = createEditor({ paper: page, workspace, getStore: () => store,
+  onPlacement(active) {
+    textTool.classList.toggle("is-active", active);
+    textTool.setAttribute("aria-pressed", String(active));
+    document.querySelector("#text-tool-help").hidden = !active;
+  } });
 
 function revealActivePage() {
   const button = navigation.querySelector('[aria-current="page"]');
@@ -33,6 +44,9 @@ function render(state) {
   const { journal, phase, error } = state;
   const ready = Boolean(journal) && (phase === "saved" || phase === "saving") && !closing;
   const active = journal?.pages.find(item => item.id === journal.activePageId);
+  textTool.disabled = !ready;
+  undoButton.disabled = !ready || !state.canUndo;
+  redoButton.disabled = !ready || !state.canRedo;
   status.textContent = closing ? "Cerrando…" : {
     loading: "Cargando…", saving: "Guardando…", saved: "Guardado", error: "Sin guardar",
   }[phase];
@@ -50,8 +64,11 @@ function render(state) {
   }
   document.querySelector("#current-page-title").textContent = active?.title ||
     (phase === "error" ? "Journal no disponible" : "Cargando journal…");
+  const texts = active?.elements.filter(element => element.type === "text").length || 0;
   document.querySelector("#page-subtitle").textContent = active
-    ? (active.elements.length ? "Contenido de futuras herramientas" : "lienzo en blanco") : "";
+    ? (texts ? `${texts} ${texts === 1 ? "texto" : "textos"}` : "lienzo en blanco") : "";
+  document.querySelector("#unknown-elements").hidden = !active?.elements.some(element => element.type !== "text");
+  editor.render(active, ready);
   workspace.setAttribute("aria-label", active ? `Área de trabajo; hoja de ${active.title}` : "Área de trabajo");
   page.setAttribute("aria-label", active ? `${active.title}, hoja con trama de puntos` : "Hoja con trama de puntos");
   document.querySelector("#page-count").textContent = journal
@@ -67,7 +84,10 @@ function render(state) {
       button.className = "page-tab";
       button.dataset.pageId = item.id;
       button.addEventListener("click", () => {
-        if (item.id !== activeId) store.update(current => selectPage(current, item.id));
+        if (item.id !== activeId) {
+          editor.finish();
+          store.update(current => selectPage(current, item.id), { recordHistory: false });
+        }
       });
       navigation.append(button);
     }
@@ -86,13 +106,13 @@ function render(state) {
   }
 }
 
-let store;
 try {
   store = createStore(nativeStorage(), render);
   const currentWindow = window.__TAURI__.window.getCurrentWindow();
   await currentWindow.onCloseRequested(async event => {
     event.preventDefault();
     if (closing) return;
+    editor.finish();
     closing = true;
     render(lastState);
     if (await store.flush()) {
@@ -106,7 +126,25 @@ try {
     closing = false;
     render(lastState);
   });
-  addButton.addEventListener("click", () => store.update(current => addPage(current, crypto.randomUUID())));
+  addButton.addEventListener("click", () => {
+    editor.finish();
+    store.update(current => addPage(current, crypto.randomUUID()));
+  });
+  textTool.addEventListener("click", () => editor.togglePlacement());
+  function history(action) {
+    if (closing || !lastState.journal || lastState.phase === "error" || lastState.phase === "loading") return;
+    editor.finish();
+    store[action]();
+  }
+  undoButton.addEventListener("click", () => history("undo"));
+  redoButton.addEventListener("click", () => history("redo"));
+  document.addEventListener("keydown", event => {
+    if (event.isComposing || !(event.ctrlKey || event.metaKey) || event.altKey) return;
+    const key = event.key.toLowerCase();
+    if (key !== "z" && key !== "y") return;
+    event.preventDefault();
+    history(key === "y" || event.shiftKey ? "redo" : "undo");
+  });
   retryButton.addEventListener("click", () => { void store.retry(); });
   reloadButton.addEventListener("click", () => {
     reloadDialog.returnValue = "cancel";

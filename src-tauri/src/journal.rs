@@ -19,7 +19,7 @@ pub struct Journal {
 pub struct Page {
     pub id: String,
     pub title: String,
-    // Se conserva el contenido de las futuras herramientas sin interpretarlo en SQL.
+    // El editor interpreta los tipos conocidos; SQLite conserva también las extensiones.
     pub elements: Vec<serde_json::Value>,
 }
 
@@ -62,9 +62,52 @@ impl Journal {
             if page.elements.iter().any(|element| !element.is_object()) {
                 return Err("Los elementos de una página deben ser objetos.".into());
             }
+            let mut element_ids = HashSet::new();
+            for element in &page.elements {
+                if element.get("type").and_then(|value| value.as_str()) != Some("text") {
+                    continue;
+                }
+                let text: TextElement = serde_json::from_value(element.clone())
+                    .map_err(|_| "Hay un bloque de texto con datos inválidos.")?;
+                text.validate()?;
+                if !element_ids.insert(text.id) {
+                    return Err("Hay bloques de texto con identificadores repetidos.".into());
+                }
+            }
         }
         if !ids.contains(&self.active_page_id) {
             return Err("La página activa no pertenece al journal.".into());
+        }
+        Ok(())
+    }
+}
+
+#[derive(Deserialize)]
+struct TextElement {
+    id: String,
+    text: String,
+    x: f64,
+    y: f64,
+    width: f64,
+    height: f64,
+}
+
+impl TextElement {
+    fn validate(&self) -> Result<(), String> {
+        if self.id.is_empty()
+            || self.id.encode_utf16().count() > 100
+            || self.text.encode_utf16().count() > 10_000
+            || ![self.x, self.y, self.width, self.height]
+                .iter()
+                .all(|value| value.is_finite())
+            || self.x < 0.0
+            || self.y < 0.0
+            || self.width < 120.0
+            || self.height < 88.0
+            || self.x + self.width > 852.0
+            || self.y + self.height > 1078.0
+        {
+            return Err("Hay un bloque de texto inválido o fuera de la hoja.".into());
         }
         Ok(())
     }

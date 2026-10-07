@@ -69,10 +69,10 @@
 
         <div class="topbar-actions">
           <div class="history-controls" role="group" aria-label="Historial">
-            <button class="icon-button" type="button" disabled aria-label="Deshacer" title="Deshacer — disponible cuando puedas editar">
+            <button class="icon-button" id="undo" type="button" disabled aria-label="Deshacer" title="Deshacer (Ctrl+Z)">
               <svg class="icon" aria-hidden="true"><use href="#icon-undo" /></svg>
             </button>
-            <button class="icon-button" type="button" disabled aria-label="Rehacer" title="Rehacer — disponible cuando puedas editar">
+            <button class="icon-button" id="redo" type="button" disabled aria-label="Rehacer" title="Rehacer (Ctrl+Shift+Z o Ctrl+Y)">
               <svg class="icon" aria-hidden="true"><use href="#icon-redo" /></svg>
             </button>
           </div>
@@ -102,11 +102,13 @@
             <span class="tool-icon tool-icon-lilac"><svg class="icon" aria-hidden="true"><use href="#icon-calendar" /></svg></span>
             <span>Calendario</span>
           </button>
-          <button class="tool-button" type="button" disabled title="Texto — en preparación">
+          <button class="tool-button" id="tool-text" type="button" disabled aria-pressed="false" aria-describedby="text-tool-help" title="Agregar un bloque de texto">
             <span class="tool-icon tool-icon-sage"><svg class="icon" aria-hidden="true"><use href="#icon-text" /></svg></span>
             <span>Texto</span>
           </button>
         </div>
+
+        <p class="tool-help" id="text-tool-help" hidden>Hacé clic en la hoja para agregar texto. Con teclado, pulsá Enter. Escape cancela.</p>
 
         <div class="tool-group future-tools" role="group" aria-labelledby="future-tools-heading">
           <p class="group-label" id="future-tools-heading">Próximamente</p>
@@ -140,12 +142,13 @@
           <button class="retry-button" id="retry-storage" type="button">Reintentar</button>
           <button class="retry-button" id="reload-journal" type="button" hidden>Recargar desde disco</button>
         </div>
+        <p class="unknown-elements" id="unknown-elements" hidden>Esta página contiene elementos que todavía no se pueden mostrar. Se conservarán al guardar.</p>
         <div class="workspace-heading">
           <p><span id="current-page-title">Cargando journal…</span> <span class="page-divider" aria-hidden="true">/</span> <span class="workspace-subtitle" id="page-subtitle"></span></p>
           <img src="assets/brand/sprig.svg" alt="" width="84" height="72" aria-hidden="true" />
         </div>
         <div class="paper-wrap">
-          <section class="journal-page" id="journal-page" aria-label="Hoja con trama de puntos" hidden></section>
+          <section class="journal-page" id="journal-page" tabindex="0" aria-label="Hoja con trama de puntos" hidden></section>
         </div>
       </main>
 

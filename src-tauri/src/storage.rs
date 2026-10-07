@@ -277,4 +277,48 @@ mod tests {
             assert_eq!(std::fs::read(&file).unwrap(), before);
         }
     }
+
+    #[test]
+    fn persists_edited_text_geometry_and_deletion() {
+        let root = tempfile::tempdir().unwrap();
+        let mut storage = Storage::open(root.path()).unwrap();
+        let mut journal = storage.load().unwrap();
+        journal.pages[0].elements = vec![json!({
+            "type": "text", "id": "text-1", "text": "Ideas 🌱\n<texto literal>",
+            "x": 480.5, "y": 600.0, "width": 300.0, "height": 240.0
+        })];
+        journal.revision = storage.save(&journal).unwrap();
+        drop(storage);
+        let mut reopened = Storage::open(root.path()).unwrap();
+        assert_eq!(reopened.load().unwrap(), journal);
+        journal.pages[0].elements.clear();
+        journal.revision = reopened.save(&journal).unwrap();
+        assert_eq!(reopened.load().unwrap(), journal);
+    }
+
+    #[test]
+    fn rejects_invalid_text_without_overwriting_the_journal() {
+        let root = tempfile::tempdir().unwrap();
+        let mut storage = Storage::open(root.path()).unwrap();
+        let original = storage.load().unwrap();
+        let valid = json!({"type":"text", "id":"text-1", "text":"hola", "x":24,
+            "y":24, "width":240, "height":160});
+        for (field, value) in [
+            ("x", json!(-1)),
+            ("y", json!(1070)),
+            ("width", json!(50)),
+            ("height", json!(2000)),
+            ("text", json!("x".repeat(10_001))),
+        ] {
+            let mut invalid = original.clone();
+            let mut element = valid.clone();
+            element[field] = value;
+            invalid.pages[0].elements.push(element);
+            assert!(storage.save(&invalid).is_err());
+        }
+        let mut duplicate = original.clone();
+        duplicate.pages[0].elements = vec![valid.clone(), valid];
+        assert!(storage.save(&duplicate).is_err());
+        assert_eq!(storage.load().unwrap(), original);
+    }
 }
